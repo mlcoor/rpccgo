@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package cgotest;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/ygrpc/protocgen/test;cgotest";
+
+// File-level defaults (can be overridden by method options).
+option (ygrpc_cgo_native_default) = 1;   // default: disable native
+option (ygrpc_cgo_req_free_default) = 2; // default: generate both + _TakeReq
+
+extend google.protobuf.FileOptions {
+  int32 ygrpc_cgo_req_free_default = 50001;
+  int32 ygrpc_cgo_native_default = 50002;
+}
+
+extend google.protobuf.MethodOptions {
+  int32 ygrpc_cgo_req_free_method = 50001;
+  int32 ygrpc_cgo_native = 50002;
+}
+
+service TestService {
+  rpc Ping(PingRequest) returns (PingResponse) {
+    option (ygrpc_cgo_native) = 1;
+  }
+  rpc PingOpt1(PingRequestOpt1) returns (PingResponse) {
+    option (ygrpc_cgo_req_free_method) = 1;
+  }
+  rpc PingOpt2(PingRequestOpt2) returns (PingResponse) {
+    option (ygrpc_cgo_native) = 0;
+    option (ygrpc_cgo_req_free_method) = 0;
+  }
+  rpc NonFlat(NonFlatRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string msg = 1;
+}
+
+message PingRequestOpt1 {
+  string msg = 1;
+}
+
+message PingRequestOpt2 {
+  string msg = 1;
+  int32 id = 2;
+}
+
+message PingResponse {
+  string msg = 1;
+}
+
+message NonFlatRequest {
+  repeated int32 ids = 1;
+}
