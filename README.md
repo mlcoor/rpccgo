@@ -2,11 +2,18 @@
 write cgo like rpc
 
 ```mermaid
-flowchart TD
-    A[CGO gen code] -->|call | B(Adaptor gen code)
-    B --> |get impl| C{GlobalRegister}
-    C -->| grpc server | D[grpc method impl]
-    C -->| connect server | E[connect method impl]
+sequenceDiagram
+    participant C as C/C++ Code
+    participant Adaptor as Generated Adaptor
+    participant Runtime as rpcruntime
+    participant Handler as gRPC/Connect Handler
+
+    C->>Adaptor: 调用导出函数
+    Adaptor->>Runtime: 查找注册的 Handler
+    Runtime->>Handler: 调用实际实现
+    Handler-->>Runtime: 返回结果
+    Runtime-->>Adaptor: 返回结果
+    Adaptor-->>C: 返回结果
 ```
 
 ## Runtime：错误信息注册表（Error Registry）
@@ -51,9 +58,9 @@ if id != 0 {
 }
 ```
 
-## C ABI：Ygrpc_GetErrorMsg
+## C ABI：Ygrpc_GetErrorMsg（设计规范）
 
-OpenSpec 定义的 ABI 原型如下：
+OpenSpec 定义的 ABI 原型如下（由后续的 `protoc-gen-rpc-cgo` 生成器生成实际的 CGO 导出代码）：
 
 ```c
 typedef void (*FreeFunc)(void*);
@@ -70,3 +77,146 @@ int Ygrpc_GetErrorMsg(int error_id, void** msg_ptr, int* msg_len, FreeFunc* msg_
 
 - `msg_ptr` 必须是 `malloc` 兼容分配的内存。
 - `msg_free` 必须是可调用的释放函数，兼容 `free(msg_ptr)`。
+
+## protoc-gen-rpc-cgo-adaptor
+
+`protoc-gen-rpc-cgo-adaptor` 是一个 protoc 插件，用于生成 CGO 适配器代码。它将 CGO 调用桥接到已注册的 gRPC 或 Connect 服务处理器。
+
+### 作用
+
+在跨语言 FFI/CGO 场景下，通常需要：
+1. 从 C/C++ 等外部语言调用 Go 实现的 gRPC/Connect 服务
+2. 避免启动完整的网络服务器，直接在进程内调用
+
+该插件生成的适配器代码：
+- 提供 C-ABI 友好的函数签名
+- 自动将请求路由到已注册的 gRPC 或 Connect Handler
+- 支持 Unary、Client-Streaming、Server-Streaming、Bidi-Streaming 全部四种 RPC 类型
+- 使用 `rpcruntime` 包管理协议分发和流式传输
+
+### 安装
+
+```bash
+go install github.com/ygrpc/rpccgo/cmd/protoc-gen-rpc-cgo-adaptor@latest
+```
+
+### 使用
+
+#### 生成代码
+
+```bash
+# 生成 gRPC 适配器
+protoc -I. --rpc-cgo-adaptor_out=./output \
+  --rpc-cgo-adaptor_opt=paths=source_relative,framework=grpc \
+  your_service.proto
+
+# 生成 Connect 适配器（默认）
+protoc -I. --rpc-cgo-adaptor_out=./output \
+  --rpc-cgo-adaptor_opt=paths=source_relative \
+  your_service.proto
+```
+
+#### 选项说明
+
+| 选项 | 值 | 说明 |
+|------|------|------|
+| `framework` | `grpc`, `connectrpc` | 选择生成的框架适配器，默认为 `connectrpc` |
+| `paths` | `source_relative`, `import` | 输出路径模式 |
+
+> **注意**: Connect 框架仅支持 Simple API 模式（使用 `protoc-gen-connect-go` 的 `simple=true` 选项生成的代码）。
+
+### 使用示例
+
+假设有以下 proto 定义：
+
+```protobuf
+service TestService {
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc StreamCall(stream StreamRequest) returns (StreamResponse);
+}
+```
+
+生成的适配器代码提供：
+
+```go
+// Unary 调用
+func TestService_Ping(ctx context.Context, req *PingRequest) (*PingResponse, error)
+
+// Client-Streaming 调用
+func TestService_StreamCallStart(ctx context.Context) (uint64, error)
+func TestService_StreamCallSend(handle uint64, req *StreamRequest) error
+func TestService_StreamCallFinish(handle uint64) (*StreamResponse, error)
+```
+
+### 注册处理器
+
+在调用适配器函数之前，需要注册实际的服务处理器：
+
+```go
+// 注册 gRPC Handler
+handler := &MyTestServiceServer{}
+rpcruntime.RegisterGrpcHandler("your.package.TestService", handler)
+
+// 注册 Connect Handler
+handler := &MyTestServiceHandler{}
+rpcruntime.RegisterConnectHandler("your.package.TestService", handler)
+```
+
+### 流式 RPC 示例
+
+#### Client-Streaming
+
+```go
+ctx := context.Background()
+
+// 1. 开始流式调用
+handle, err := TestService_ClientStreamCallStart(ctx)
+
+// 2. 发送多条消息
+TestService_ClientStreamCallSend(handle, &StreamRequest{Data: "msg1"})
+TestService_ClientStreamCallSend(handle, &StreamRequest{Data: "msg2"})
+
+// 3. 完成并获取响应
+resp, err := TestService_ClientStreamCallFinish(handle)
+```
+
+#### Server-Streaming
+
+```go
+ctx := context.Background()
+
+// 使用回调接收响应
+err := TestService_ServerStreamCall(ctx, req,
+    func(resp *StreamResponse) bool {
+        fmt.Println("Received:", resp.GetResult())
+        return true // 返回 false 停止接收
+    },
+    func(err error) {
+        fmt.Println("Stream completed:", err)
+    },
+)
+```
+
+#### Bidi-Streaming
+
+```go
+ctx := context.Background()
+
+// 1. 开始流式调用，提供接收回调
+handle, err := TestService_BidiStreamCallStart(ctx,
+    func(resp *StreamResponse) bool {
+        fmt.Println("Received:", resp.GetResult())
+        return true
+    },
+    func(err error) {
+        fmt.Println("Stream completed:", err)
+    },
+)
+
+// 2. 发送消息
+TestService_BidiStreamCallSend(handle, &StreamRequest{Data: "msg1"})
+TestService_BidiStreamCallSend(handle, &StreamRequest{Data: "msg2"})
+
+// 3. 关闭发送端
+TestService_BidiStreamCallCloseSend(handle)
+```
