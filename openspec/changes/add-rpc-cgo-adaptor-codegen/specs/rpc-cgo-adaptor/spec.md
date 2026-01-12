@@ -33,12 +33,12 @@ The protoc plugin SHALL support an option to control which framework-specific ad
 - `grpc`
 - `connectrpc`
 
-If no option is provided, the plugin SHALL generate adaptor code for both frameworks.
+If no option is provided, the plugin SHALL generate adaptor code for `connectrpc` (default).
 
-#### Scenario: Default generates both frameworks
+#### Scenario: Default generates connectrpc
 - **GIVEN** a proto input with at least one service
 - **WHEN** `protoc-gen-rpc-cgo-adaptor` runs with no framework selection option
-- **THEN** it SHALL generate adaptor entrypoints for both `grpc` and `connectrpc`
+- **THEN** it SHALL generate adaptor entrypoints for `connectrpc`
 
 #### Scenario: Option restricts to grpc
 - **GIVEN** a proto input with at least one service

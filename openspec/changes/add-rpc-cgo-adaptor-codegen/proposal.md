@@ -9,8 +9,8 @@
 - 新增能力规范（spec delta）：`rpc-cgo-adaptor`
   - 定义 `protoc-gen-rpc-cgo-adaptor` 的生成产物形态与调用语义。
   - 生成的方法签名使用 proto 生成的 Go 消息结构体（例如 `*pb.Req` / `*pb.Resp`），并为 streaming 方法提供 staged/callback 形式的类型安全 API（不要求调用方直接持有框架 stream 对象）。
-  - 每个生成的方法都接受 `context.Context` 作为第一个参数；框架选择（`grpc` / `connectrpc`）通过 `ctx` 传递：由运行时提供 `rpcruntime.WithProtocol` / `rpcruntime.ProtocolFromContext` helper，调用方通过导入 `rpcruntime` 常量设置值。
-  - 生成器支持通过 protoc plugin 参数选择生成哪些框架的 adaptor 代码（默认生成所有支持的框架）。推荐形态：`--rpc-cgo-adaptor_opt=framework=grpc|connectrpc|all`（不传或传 `all` 则生成全部）。
+  - 每个生成的方法都接受 `context.Context` 作为第一个参数（用于 cancellation/deadline/trace 等透传）。框架选择（`grpc` / `connectrpc`）由生成器参数在生成阶段确定，不通过 `ctx` 传递。
+  - 生成器支持通过 protoc plugin 参数选择生成哪种框架的 adaptor 代码（默认生成 connectrpc）。推荐形态：`--rpc-cgo-adaptor_opt=framework=grpc|connectrpc`。
   - Connect 框架仅支持 Simple API 模式（使用 `connect-simple=true` 生成的 handler 接口）。
 - 补充 `rpc-dispatch` 规范（spec delta）：明确 protocol 选择使用 `rpcruntime.Protocol` 及其稳定常量值，以便生成器和调用方共享同一组枚举。
 

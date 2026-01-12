@@ -7,7 +7,7 @@
 
 ## 2. Codegen: `protoc-gen-rpc-cgo-adaptor`
 - [x] Add minimal protoc plugin harness using `google.golang.org/protobuf/compiler/protogen`.
-- [x] Add protoc plugin options to control generated frameworks: `grpc` / `connectrpc` / `all` (default: all).
+- [x] Add protoc plugin options to control generated framework: `grpc` / `connectrpc` (default: connectrpc).
 - [x] For each `service` in input protos, generate adaptor Go code that:
   - [x] Defines `serviceName` and `fullMethod` constants (`/Service/Method`).
   - [x] Defines one exported Go function per RPC method for CGO-side Go callers.
