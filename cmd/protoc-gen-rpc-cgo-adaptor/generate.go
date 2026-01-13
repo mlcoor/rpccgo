@@ -85,17 +85,14 @@ func generateMethod(
 	isClientStreaming := method.Desc.IsStreamingClient()
 	isServerStreaming := method.Desc.IsStreamingServer()
 
-	if !isClientStreaming && !isServerStreaming {
-		// Unary method.
+	switch {
+	case !isClientStreaming && !isServerStreaming:
 		generateUnaryMethod(g, file, service, method, opts)
-	} else if isClientStreaming && !isServerStreaming {
-		// Client-streaming method.
+	case isClientStreaming && !isServerStreaming:
 		generateClientStreamingMethod(g, file, service, method, opts)
-	} else if !isClientStreaming && isServerStreaming {
-		// Server-streaming method.
+	case !isClientStreaming && isServerStreaming:
 		generateServerStreamingMethod(g, file, service, method, opts)
-	} else {
-		// Bidi-streaming method.
+	default:
 		generateBidiStreamingMethod(g, file, service, method, opts)
 	}
 }
@@ -534,84 +531,6 @@ func generateClientStreamingMethod(
 	g.P()
 }
 
-func generateClientStreamStartGrpc(
-	g *protogen.GeneratedFile,
-	service *protogen.Service,
-	method *protogen.Method,
-	serviceName, indent string,
-) {
-	grpcServerIface := service.GoName + "Server"
-	streamIface := service.GoName + "_" + method.GoName + "Server"
-
-	g.P(
-		indent,
-		"h, ok := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("LookupGrpcHandler")),
-		"(",
-		fmt.Sprintf("%q", serviceName),
-		")",
-	)
-	g.P(indent, "if !ok {")
-	g.P(indent, "    return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrServiceNotRegistered")))
-	g.P(indent, "}")
-	g.P(indent, "svc, ok := h.(", grpcServerIface, ")")
-	g.P(indent, "if !ok {")
-	g.P(indent, "    return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
-	g.P(indent, "}")
-	g.P(indent, "// Create adaptor stream and start handler goroutine")
-	g.P(indent, "adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
-	g.P(indent, "session.SetHandlerState(adaptorStream)")
-	g.P(indent, "go func() {")
-	g.P(indent, "    err := svc.", method.GoName, "(adaptorStream)")
-	g.P(
-		indent,
-		"    ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")),
-		"(handle, adaptorStream.lastResp, err)",
-	)
-	g.P(indent, "}()")
-}
-
-func generateClientStreamStartConnect(
-	g *protogen.GeneratedFile,
-	service *protogen.Service,
-	method *protogen.Method,
-	serviceName, indent string,
-) {
-	connectHandlerIface := service.GoName + "Handler"
-	reqType := g.QualifiedGoIdent(method.Input.GoIdent)
-
-	g.P(
-		indent,
-		"h, ok := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("LookupConnectHandler")),
-		"(",
-		fmt.Sprintf("%q", serviceName),
-		")",
-	)
-	g.P(indent, "if !ok {")
-	g.P(indent, "    return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrServiceNotRegistered")))
-	g.P(indent, "}")
-	g.P(indent, "svc, ok := h.(", connectHandlerIface, ")")
-	g.P(indent, "if !ok {")
-	g.P(indent, "    return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
-	g.P(indent, "}")
-	g.P(indent, "// Create Connect stream using rpcruntime helper")
-	g.P(indent, "conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
-	g.P(
-		indent,
-		"connectStream := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewClientStream")),
-		"[",
-		reqType,
-		"](conn)",
-	)
-	g.P(indent, "go func() {")
-	g.P(indent, "    resp, err := svc.", method.GoName, "(childCtx, connectStream)")
-	g.P(indent, "    ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, resp, err)")
-	g.P(indent, "}()")
-}
-
 func unexport(s string) string {
 	if len(s) == 0 {
 		return s
@@ -901,22 +820,6 @@ func generateBidiStreamingMethod(
 	)
 	g.P("}")
 	g.P()
-}
-
-func generateBidiStreamStartGrpc(
-	g *protogen.GeneratedFile,
-	service *protogen.Service,
-	method *protogen.Method,
-	serviceName, indent string,
-) {
-}
-
-func generateBidiStreamStartConnect(
-	g *protogen.GeneratedFile,
-	service *protogen.Service,
-	method *protogen.Method,
-	serviceName, indent string,
-) {
 }
 
 // generateStreamAdaptorType generates the adaptor struct that implements grpc's *_Server stream interface.

@@ -124,20 +124,19 @@ func parseProtocolToken(raw string) ([]ProtocolOption, error) {
 
 	if len(out) == 0 {
 		return []ProtocolOption{ProtocolOptionConnectRPC}, nil
-	} else {
-		return out, nil
 	}
+	return out, nil
 }
 
 func parseConnectPackageSuffix(s string) (string, error) {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {
 		return "", nil
-	} else if token.IsIdentifier(trimmed) {
-		return trimmed, nil
-	} else {
-		return "", fmt.Errorf("invalid connect_package_suffix %q (must be a Go identifier)", trimmed)
 	}
+	if token.IsIdentifier(trimmed) {
+		return trimmed, nil
+	}
+	return "", fmt.Errorf("invalid connect_package_suffix %q (must be a Go identifier)", trimmed)
 }
 
 func supportsProtocol(protocols []ProtocolOption, p ProtocolOption) bool {
