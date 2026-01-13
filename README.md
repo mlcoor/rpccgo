@@ -117,7 +117,7 @@ protoc -I. --rpc-cgo-adaptor_out=./output \
 
 # 同时生成支持 gRPC + ConnectRPC 的通用适配器（按顺序 fallback）
 protoc -I. --rpc-cgo-adaptor_out=./output \
-  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc,connectrpc \
+  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc|connectrpc \
   your_service.proto
 ```
 
@@ -125,7 +125,7 @@ protoc -I. --rpc-cgo-adaptor_out=./output \
 
 | 选项 | 值 | 说明 |
 |------|------|------|
-| `protocol` | `grpc`, `connectrpc`（逗号分隔、有序列表） | 选择生成支持的协议列表；ctx 未指定时按顺序 fallback；默认为 `connectrpc` |
+| `protocol` | `grpc` / `connectrpc` / `grpc|connectrpc`（`|` 分隔、有序列表） | 选择生成支持的协议列表；ctx 未指定时按顺序 fallback；默认为 `connectrpc` |
 | `connect_package_suffix` | 例如 `connect` | connect-go 的 `package_suffix`；非空时 connect handler interface 位于 `<import-path>/<go-package-name><suffix>` |
 | `paths` | `source_relative`, `import` | 输出路径模式 |
 
