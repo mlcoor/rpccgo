@@ -134,7 +134,7 @@ Streaming 方法/Start 方法中同样先选 `(protocol, handler)`，然后按 p
 `cgotest/` 下建议维持三套目录：
 - `cgotest/connect/`：单协议 `protocol=connectrpc`
 - `cgotest/grpc/`：单协议 `protocol=grpc`
-- `cgotest/all/`：多协议 `protocol=grpc,connectrpc`（用于混合注册语义测试）
+- `cgotest/mix/`：多协议 `protocol=grpc|connectrpc`（用于混合注册语义测试）
 
 ### 解决 connectrpc/grpc 生成代码冲突
 问题：如果在同一个 Go package 同时运行 `protoc-gen-go-grpc` 与 `protoc-gen-connect-go`，两者都会生成同名的 client 符号（典型是 `New<Service>Client`），从而导致 Go 编译期符号重复。
@@ -168,7 +168,7 @@ protoc -Iproto \
   --go-grpc_out=./all --go-grpc_opt=paths=source_relative,... \
   --connect-go_out=./all --connect-go_opt=paths=source_relative,simple=true,... \
   --rpc-cgo-adaptor_out=./all \
-  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc,connectrpc,... \
+  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc|connectrpc,... \
   ./proto/unary.proto
 ```
 
@@ -194,7 +194,7 @@ protoc -Iproto \
 2) ctx 不指定 + 注册 connectrpc → 期望 fallback 命中 connectrpc
 - ctx 不设置 protocol
 - 注册 connect handler
-- adaptor 在 `protocol=grpc,connectrpc` 下先尝试 grpc lookup 失败，再尝试 connect lookup 成功
+- adaptor 在 `protocol=grpc|connectrpc` 下先尝试 grpc lookup 失败，再尝试 connect lookup 成功
 
 3) 单协议 `protocol=grpc` + 注册 connectrpc → 期望错误（不 lookup connectrpc）
 - 该用例可以放在 `cgotest/grpc`（grpc-only 生成物）中：仅注册 connect handler，然后调用 adaptor → 必须返回错误
@@ -203,7 +203,7 @@ protoc -Iproto \
 
 ## 插件参数与生成文件（Plugin Option & Generated Files）
 - 插件参数：`protocol` 为逗号分隔列表。
-  - 示例：`protocol=grpc,connectrpc`。
+  - 示例：`protocol=grpc|connectrpc`。
   - 省略时默认列表为 `connectrpc`。
 
 每个 proto 输入文件的生成输出：

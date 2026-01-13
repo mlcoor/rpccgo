@@ -3,7 +3,7 @@
 ### Requirement: Protocols selection via plugin options
 protoc 插件 SHALL 支持一个选项，用于控制生成哪些 protocol 对应的 adaptor 代码。
 
-该选项的值 SHALL 为逗号分隔的有序 protocol 标识符列表：
+该选项的值 SHALL 为以 `;` 分隔的有序 protocol 标识符列表：
 - `grpc`
 - `connectrpc`
 
@@ -16,7 +16,7 @@ protoc 插件 SHALL 支持一个选项，用于控制生成哪些 protocol 对�
 
 #### Scenario: Protocol list supports multiple entries
 - **GIVEN** a proto input with at least one service
-- **WHEN** `protoc-gen-rpc-cgo-adaptor` runs with `protocol=grpc,connectrpc`
+- **WHEN** `protoc-gen-rpc-cgo-adaptor` runs with `protocol=grpc|connectrpc`
 - **THEN** it SHALL generate adaptor code supporting both `grpc` and `connectrpc`
 
 ---
@@ -68,7 +68,7 @@ Notes:
 
 #### Scenario: Missing protocol falls back across configured list
 - **GIVEN** `ctx` does not carry a protocol value
-- **AND** the generated adaptor is configured with `protocol=grpc,connectrpc`
+- **AND** the generated adaptor is configured with `protocol=grpc|connectrpc`
 - **AND** a connectrpc handler is registered for `serviceName`
 - **WHEN** the generated adaptor function is invoked
 - **THEN** it SHALL attempt grpc lookup first

@@ -48,7 +48,7 @@ func main() {
 	protocolFlag := flags.String(
 		"protocol",
 		"",
-		"protocols to generate support for; use ';' to separate multiple protocols (e.g. protocol=grpc;connectrpc); default is connectrpc",
+		"protocols to generate support for; use '|' to separate multiple protocols (e.g. protocol=grpc|connectrpc); default is connectrpc",
 	)
 
 	protogen.Options{
@@ -88,12 +88,19 @@ func parseProtocolToken(raw string) ([]ProtocolOption, error) {
 
 	if strings.Contains(trimmedRaw, ",") {
 		return nil, fmt.Errorf(
-			"invalid protocol value %q: use ';' to separate multiple protocols (e.g. protocol=grpc;connectrpc); commas are reserved to separate protoc plugin options",
+			"invalid protocol value %q: use '|' to separate multiple protocols (e.g. protocol=grpc|connectrpc); commas are reserved to separate protoc plugin options",
 			trimmedRaw,
 		)
 	}
 
-	parts := strings.Split(trimmedRaw, ";")
+	if strings.Contains(trimmedRaw, ";") {
+		return nil, fmt.Errorf(
+			"invalid protocol value %q: use '|' to separate multiple protocols (e.g. protocol=grpc|connectrpc); ';' is not supported",
+			trimmedRaw,
+		)
+	}
+
+	parts := strings.Split(trimmedRaw, "|")
 	for _, part := range parts {
 		token := strings.ToLower(strings.TrimSpace(part))
 		if token == "" {
