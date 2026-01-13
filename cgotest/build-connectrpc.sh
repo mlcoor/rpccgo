@@ -29,12 +29,15 @@ fi
 
 mkdir -p ./connect
 
+# Package mapping for cgotest_connect
+GO_PKG="Munary.proto=github.com/ygrpc/rpccgo/cgotest/connect;cgotest_connect,Mstream.proto=github.com/ygrpc/rpccgo/cgotest/connect;cgotest_connect"
+
 # 生成 Connect 代码，放在 ./connect 目录下
-protoc  -Iproto --go_out=./connect --go_opt=paths=source_relative \
- --connect-go_out=./connect --connect-go_opt=package_suffix="",paths=source_relative,simple=true \
+protoc  -Iproto --go_out=./connect --go_opt=paths=source_relative,${GO_PKG} \
+ --connect-go_out=./connect --connect-go_opt=package_suffix="",paths=source_relative,simple=true,${GO_PKG} \
  ./proto/unary.proto ./proto/stream.proto
 
 # 生成 CGO adaptor 代码
 protoc -Iproto --rpc-cgo-adaptor_out=./connect \
- --rpc-cgo-adaptor_opt=paths=source_relative,framework=connectrpc \
+ --rpc-cgo-adaptor_opt=paths=source_relative,framework=connectrpc,${GO_PKG} \
  ./proto/unary.proto ./proto/stream.proto

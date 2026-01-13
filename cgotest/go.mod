@@ -1,4 +1,4 @@
-module cgotest
+module github.com/ygrpc/rpccgo/cgotest
 
 go 1.25.5
 

@@ -24,10 +24,13 @@ fi
 
 mkdir -p ./grpc
 
-protoc  -Iproto --go_out=./grpc --go_opt=paths=source_relative \
- --go-grpc_out=./grpc --go-grpc_opt=paths=source_relative \
+# Package mapping for cgotest_grpc
+GO_PKG="Munary.proto=github.com/ygrpc/rpccgo/cgotest/grpc;cgotest_grpc,Mstream.proto=github.com/ygrpc/rpccgo/cgotest/grpc;cgotest_grpc"
+
+protoc  -Iproto --go_out=./grpc --go_opt=paths=source_relative,${GO_PKG} \
+ --go-grpc_out=./grpc --go-grpc_opt=paths=source_relative,${GO_PKG} \
  ./proto/unary.proto ./proto/stream.proto
 
 protoc -Iproto --rpc-cgo-adaptor_out=./grpc \
- --rpc-cgo-adaptor_opt=paths=source_relative,framework=grpc \
+ --rpc-cgo-adaptor_opt=paths=source_relative,framework=grpc,${GO_PKG} \
  ./proto/unary.proto ./proto/stream.proto

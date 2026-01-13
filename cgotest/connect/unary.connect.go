@@ -2,7 +2,7 @@
 //
 // Source: unary.proto
 
-package cgotest
+package cgotest_connect
 
 import (
 	connect "connectrpc.com/connect"

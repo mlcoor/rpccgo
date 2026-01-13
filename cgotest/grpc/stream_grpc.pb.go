@@ -4,7 +4,7 @@
 // - protoc             v6.33.1
 // source: stream.proto
 
-package cgotest
+package cgotest_grpc
 
 import (
 	context "context"

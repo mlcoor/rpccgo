@@ -4,7 +4,7 @@
 // 	protoc        v6.33.1
 // source: unary.proto
 
-package cgotest
+package cgotest_grpc
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -325,7 +325,7 @@ const file_unary_proto_rawDesc = "" +
 	"\x1aygrpc_cgo_req_free_default\x12\x1c.google.protobuf.FileOptions\x18ц\x03 \x01(\x05R\x16ygrpcCgoReqFreeDefault:W\n" +
 	"\x18ygrpc_cgo_native_default\x12\x1c.google.protobuf.FileOptions\x18҆\x03 \x01(\x05R\x15ygrpcCgoNativeDefault:Z\n" +
 	"\x19ygrpc_cgo_req_free_method\x12\x1e.google.protobuf.MethodOptions\x18ц\x03 \x01(\x05R\x15ygrpcCgoReqFreeMethod:J\n" +
-	"\x10ygrpc_cgo_native\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\x05R\x0eygrpcCgoNativeB1\x88\xb5\x18\x02\x90\xb5\x18\x01Z'github.com/ygrpc/protocgen/test;cgotestb\x06proto3"
+	"\x10ygrpc_cgo_native\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\x05R\x0eygrpcCgoNativeB1\x88\xb5\x18\x02\x90\xb5\x18\x01Z'github.com/ygrpc/rpccgo/cgotest;cgotestb\x06proto3"
 
 var (
 	file_unary_proto_rawDescOnce sync.Once

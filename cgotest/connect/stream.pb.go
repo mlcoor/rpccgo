@@ -4,7 +4,7 @@
 // 	protoc        v6.33.1
 // source: stream.proto
 
-package cgotest
+package cgotest_connect
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -140,7 +140,7 @@ const file_stream_proto_rawDesc = "" +
 	"\tUnaryCall\x12\x16.cgotest.StreamRequest\x1a\x17.cgotest.StreamResponse\x12E\n" +
 	"\x10ClientStreamCall\x12\x16.cgotest.StreamRequest\x1a\x17.cgotest.StreamResponse(\x01\x12E\n" +
 	"\x10ServerStreamCall\x12\x16.cgotest.StreamRequest\x1a\x17.cgotest.StreamResponse0\x01\x12E\n" +
-	"\x0eBidiStreamCall\x12\x16.cgotest.StreamRequest\x1a\x17.cgotest.StreamResponse(\x010\x01B)Z'github.com/ygrpc/protocgen/test;cgotestb\x06proto3"
+	"\x0eBidiStreamCall\x12\x16.cgotest.StreamRequest\x1a\x17.cgotest.StreamResponse(\x010\x01B,Z*github.com/ygrpc/protocgen/cgotest;cgotestb\x06proto3"
 
 var (
 	file_stream_proto_rawDescOnce sync.Once

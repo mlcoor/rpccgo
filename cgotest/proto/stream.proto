@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package cgotest;
 
-option go_package = "github.com/ygrpc/protocgen/test;cgotest";
+option go_package = "github.com/ygrpc/protocgen/cgotest;cgotest";
 
 // StreamService demonstrates all four RPC streaming patterns.
 service StreamService {

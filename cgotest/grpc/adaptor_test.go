@@ -1,4 +1,4 @@
-package cgotest
+package cgotest_grpc
 
 import (
 	"context"

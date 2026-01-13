@@ -4,7 +4,7 @@ package cgotest;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/ygrpc/protocgen/test;cgotest";
+option go_package = "github.com/ygrpc/rpccgo/cgotest;cgotest";
 
 // File-level defaults (can be overridden by method options).
 option (ygrpc_cgo_native_default) = 1;   // default: disable native

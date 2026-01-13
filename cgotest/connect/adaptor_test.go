@@ -1,4 +1,4 @@
-package cgotest
+package cgotest_connect
 
 import (
 	"context"

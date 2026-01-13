@@ -4,7 +4,7 @@
 // - protoc             v6.33.1
 // source: unary.proto
 
-package cgotest
+package cgotest_grpc
 
 import (
 	context "context"
