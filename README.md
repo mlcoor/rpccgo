@@ -107,12 +107,17 @@ go install github.com/ygrpc/rpccgo/cmd/protoc-gen-rpc-cgo-adaptor@latest
 ```bash
 # 生成 gRPC 适配器
 protoc -I. --rpc-cgo-adaptor_out=./output \
-  --rpc-cgo-adaptor_opt=paths=source_relative,framework=grpc \
+  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc \
   your_service.proto
 
 # 生成 Connect 适配器（默认）
 protoc -I. --rpc-cgo-adaptor_out=./output \
   --rpc-cgo-adaptor_opt=paths=source_relative \
+  your_service.proto
+
+# 同时生成支持 gRPC + ConnectRPC 的通用适配器（按顺序 fallback）
+protoc -I. --rpc-cgo-adaptor_out=./output \
+  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc,connectrpc \
   your_service.proto
 ```
 
@@ -120,7 +125,8 @@ protoc -I. --rpc-cgo-adaptor_out=./output \
 
 | 选项 | 值 | 说明 |
 |------|------|------|
-| `framework` | `grpc`, `connectrpc` | 选择生成的框架适配器，默认为 `connectrpc` |
+| `protocol` | `grpc`, `connectrpc`（逗号分隔、有序列表） | 选择生成支持的协议列表；ctx 未指定时按顺序 fallback；默认为 `connectrpc` |
+| `connect_package_suffix` | 例如 `connect` | connect-go 的 `package_suffix`；非空时 connect handler interface 位于 `<import-path>/<go-package-name><suffix>` |
 | `paths` | `source_relative`, `import` | 输出路径模式 |
 
 > **注意**: Connect 框架仅支持 Simple API 模式（使用 `protoc-gen-connect-go` 的 `simple=true` 选项生成的代码）。
