@@ -63,7 +63,7 @@ func generateService(
 			isClientStreaming := method.Desc.IsStreamingClient()
 			isServerStreaming := method.Desc.IsStreamingServer()
 			if isClientStreaming || isServerStreaming {
-				generateStreamAdaptorType(g, file, service, method, "grpc")
+				generateGrpcStreamAdaptorType(g, file, service, method, "grpc")
 			}
 		}
 	}
@@ -411,30 +411,45 @@ func generateClientStreamingMethod(
 	g.P("    if err != nil {")
 	g.P("        return 0, err")
 	g.P("    }")
-	g.P(
-		"    handle, childCtx, _ := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
-		"(ctx, protocol)",
-	)
-	g.P(
-		"    session := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
-		"(handle)",
-	)
-	g.P("    if session == nil {")
-	g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
-	g.P("    }")
 	g.P()
 
 	supportsGrpc := supportsProtocol(opts.Protocols, ProtocolOptionGrpc)
 	supportsConnect := supportsProtocol(opts.Protocols, ProtocolOptionConnectRPC)
 	switch {
 	case supportsGrpc && supportsConnect:
+		g.P("    var grpcSvc ", grpcServerIface)
+		g.P("    var connectSvc ", connectHandlerIface)
 		g.P("    if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolGrpc")), " {")
 		g.P("        svc, ok := h.(", grpcServerIface, ")")
 		g.P("        if !ok {")
 		g.P("            return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("        }")
+		g.P("        grpcSvc = svc")
+		g.P("    } else if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolConnectRPC")), " {")
+		g.P("        svc, ok := h.(", connectHandlerIface, ")")
+		g.P("        if !ok {")
+		g.P("            return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
+		g.P("        }")
+		g.P("        connectSvc = svc")
+		g.P("    } else {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")))
+		g.P("    }")
+		g.P()
+		g.P(
+			"    handle, childCtx, _ := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
+			"(ctx, protocol)",
+		)
+		g.P(
+			"    session := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
+			"(handle)",
+		)
+		g.P("    if session == nil {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P()
+		g.P("    if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolGrpc")), " {")
 		g.P(
 			"        adaptorStream := &",
 			unexport(service.GoName+"_"+method.GoName+"Server"),
@@ -442,18 +457,14 @@ func generateClientStreamingMethod(
 		)
 		g.P("        session.SetHandlerState(adaptorStream)")
 		g.P("        go func() {")
-		g.P("            err := svc.", method.GoName, "(adaptorStream)")
+		g.P("            err := grpcSvc.", method.GoName, "(adaptorStream)")
 		g.P(
 			"            ",
 			g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")),
 			"(handle, adaptorStream.lastResp, err)",
 		)
 		g.P("        }()")
-		g.P("    } else if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolConnectRPC")), " {")
-		g.P("        svc, ok := h.(", connectHandlerIface, ")")
-		g.P("        if !ok {")
-		g.P("            return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
-		g.P("        }")
+		g.P("    } else {")
 		g.P("        conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
 		g.P(
 			"        connectStream := ",
@@ -463,17 +474,30 @@ func generateClientStreamingMethod(
 			"](conn)",
 		)
 		g.P("        go func() {")
-		g.P("            resp, err := svc.", method.GoName, "(childCtx, connectStream)")
+		g.P("            resp, err := connectSvc.", method.GoName, "(childCtx, connectStream)")
 		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, resp, err)")
 		g.P("        }()")
-		g.P("    } else {")
-		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")))
 		g.P("    }")
 	case supportsGrpc:
 		g.P("    svc, ok := h.(", grpcServerIface, ")")
 		g.P("    if !ok {")
 		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("    }")
+		g.P()
+		g.P(
+			"    handle, childCtx, _ := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
+			"(ctx, protocol)",
+		)
+		g.P(
+			"    session := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
+			"(handle)",
+		)
+		g.P("    if session == nil {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P()
 		g.P("    adaptorStream := &", unexport(service.GoName+"_"+method.GoName+"Server"), "Adaptor{session: session}")
 		g.P("    session.SetHandlerState(adaptorStream)")
 		g.P("    go func() {")
@@ -489,6 +513,21 @@ func generateClientStreamingMethod(
 		g.P("    if !ok {")
 		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("    }")
+		g.P()
+		g.P(
+			"    handle, childCtx, _ := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
+			"(ctx, protocol)",
+		)
+		g.P(
+			"    session := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
+			"(handle)",
+		)
+		g.P("    if session == nil {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P()
 		g.P("    conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
 		g.P(
 			"    connectStream := ",
@@ -590,14 +629,6 @@ func generateServerStreamingMethod(
 	g.P("        onDone(err)")
 	g.P("        return err")
 	g.P("    }")
-
-	g.P("    handle, _, _ := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")), "(ctx, protocol)")
-	g.P("    session := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")), "(handle)")
-	g.P("    if session == nil {")
-	g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")), ")")
-	g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
-	g.P("    }")
-	g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
 	g.P()
 
 	streamIface := service.GoName + "_" + method.GoName + "Server"
@@ -606,25 +637,42 @@ func generateServerStreamingMethod(
 	supportsConnect := supportsProtocol(opts.Protocols, ProtocolOptionConnectRPC)
 	switch {
 	case supportsGrpc && supportsConnect:
+		g.P("    var grpcSvc ", grpcServerIface)
+		g.P("    var connectSvc ", connectHandlerIface)
 		g.P("    if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolGrpc")), " {")
 		g.P("        svc, ok := h.(", grpcServerIface, ")")
 		g.P("        if !ok {")
-		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("            onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")), ")")
 		g.P("            return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("        }")
-		g.P("        adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
-		g.P("        err = svc.", method.GoName, "(req, adaptorStream)")
-		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
-		g.P("        onDone(err)")
-		g.P("        return err")
+		g.P("        grpcSvc = svc")
 		g.P("    } else if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolConnectRPC")), " {")
 		g.P("        svc, ok := h.(", connectHandlerIface, ")")
 		g.P("        if !ok {")
-		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("            onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")), ")")
 		g.P("            return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("        }")
+		g.P("        connectSvc = svc")
+		g.P("    } else {")
+		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")), ")")
+		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")))
+		g.P("    }")
+		g.P()
+		g.P("    handle, _, _ := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")), "(ctx, protocol)")
+		g.P("    session := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")), "(handle)")
+		g.P("    if session == nil {")
+		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")), ")")
+		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
+		g.P()
+		g.P("    if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolGrpc")), " {")
+		g.P("        adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
+		g.P("        err = grpcSvc.", method.GoName, "(req, adaptorStream)")
+		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
+		g.P("        onDone(err)")
+		g.P("        return err")
+		g.P("    } else {")
 		g.P("        conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
 		g.P(
 			"        connectStream := ",
@@ -633,22 +681,26 @@ func generateServerStreamingMethod(
 			respType,
 			"](conn)",
 		)
-		g.P("        err = svc.", method.GoName, "(ctx, req, connectStream)")
+		g.P("        err = connectSvc.", method.GoName, "(ctx, req, connectStream)")
 		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("        onDone(err)")
 		g.P("        return err")
-		g.P("    } else {")
-		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
-		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")), ")")
-		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")))
 		g.P("    }")
 	case supportsGrpc:
 		g.P("    svc, ok := h.(", grpcServerIface, ")")
 		g.P("    if !ok {")
-		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")), ")")
 		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("    }")
+		g.P()
+		g.P("    handle, _, _ := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")), "(ctx, protocol)")
+		g.P("    session := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")), "(handle)")
+		g.P("    if session == nil {")
+		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")), ")")
+		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
+		g.P()
 		g.P("    adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
 		g.P("    err = svc.", method.GoName, "(req, adaptorStream)")
 		g.P("    ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
@@ -657,10 +709,18 @@ func generateServerStreamingMethod(
 	default:
 		g.P("    svc, ok := h.(", connectHandlerIface, ")")
 		g.P("    if !ok {")
-		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")), ")")
 		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("    }")
+		g.P()
+		g.P("    handle, _, _ := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")), "(ctx, protocol)")
+		g.P("    session := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")), "(handle)")
+		g.P("    if session == nil {")
+		g.P("        onDone(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")), ")")
+		g.P("        return ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
+		g.P()
 		g.P("    conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
 		g.P(
 			"    connectStream := ",
@@ -717,21 +777,6 @@ func generateBidiStreamingMethod(
 	g.P("    if err != nil {")
 	g.P("        return 0, err")
 	g.P("    }")
-
-	g.P(
-		"    handle, childCtx, _ := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
-		"(ctx, protocol)",
-	)
-	g.P(
-		"    session := ",
-		g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
-		"(handle)",
-	)
-	g.P("    if session == nil {")
-	g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
-	g.P("    }")
-	g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
 	g.P()
 
 	streamIface := service.GoName + "_" + method.GoName + "Server"
@@ -740,25 +785,50 @@ func generateBidiStreamingMethod(
 	supportsConnect := supportsProtocol(opts.Protocols, ProtocolOptionConnectRPC)
 	switch {
 	case supportsGrpc && supportsConnect:
+		g.P("    var grpcSvc ", grpcServerIface)
+		g.P("    var connectSvc ", connectHandlerIface)
 		g.P("    if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolGrpc")), " {")
 		g.P("        svc, ok := h.(", grpcServerIface, ")")
 		g.P("        if !ok {")
 		g.P("            return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("        }")
-		g.P("        adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
-		g.P("        session.SetHandlerState(adaptorStream)")
-		g.P("        go func() {")
-		g.P("            err := svc.", method.GoName, "(adaptorStream)")
-		g.P("            if cb := session.OnDone(); cb != nil {")
-		g.P("                cb(err)")
-		g.P("            }")
-		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
-		g.P("        }()")
+		g.P("        grpcSvc = svc")
 		g.P("    } else if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolConnectRPC")), " {")
 		g.P("        svc, ok := h.(", connectHandlerIface, ")")
 		g.P("        if !ok {")
 		g.P("            return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("        }")
+		g.P("        connectSvc = svc")
+		g.P("    } else {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")))
+		g.P("    }")
+		g.P()
+		g.P(
+			"    handle, childCtx, _ := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
+			"(ctx, protocol)",
+		)
+		g.P(
+			"    session := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
+			"(handle)",
+		)
+		g.P("    if session == nil {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
+		g.P()
+		g.P("    if protocol == ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ProtocolGrpc")), " {")
+		g.P("        adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
+		g.P("        session.SetHandlerState(adaptorStream)")
+		g.P("        go func() {")
+		g.P("            err := grpcSvc.", method.GoName, "(adaptorStream)")
+		g.P("            if cb := session.OnDone(); cb != nil {")
+		g.P("                cb(err)")
+		g.P("            }")
+		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
+		g.P("        }()")
+		g.P("    } else {")
 		g.P("        conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
 		g.P(
 			"        connectStream := ",
@@ -771,20 +841,40 @@ func generateBidiStreamingMethod(
 		)
 		g.P("        session.SetHandlerState(connectStream)")
 		g.P("        go func() {")
-		g.P("            err := svc.", method.GoName, "(childCtx, connectStream)")
+		g.P("            err := connectSvc.", method.GoName, "(childCtx, connectStream)")
 		g.P("            if cb := session.OnDone(); cb != nil {")
 		g.P("                cb(err)")
 		g.P("            }")
 		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("        }()")
-		g.P("    } else {")
-		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrUnknownProtocol")))
 		g.P("    }")
+		g.P()
+		g.P("    _ = childCtx // Used in goroutine")
+		g.P("    return uint64(handle), nil")
+		g.P("}")
+		g.P()
+		goto bidiSend
 	case supportsGrpc:
 		g.P("    svc, ok := h.(", grpcServerIface, ")")
 		g.P("    if !ok {")
 		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("    }")
+		g.P()
+		g.P(
+			"    handle, childCtx, _ := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
+			"(ctx, protocol)",
+		)
+		g.P(
+			"    session := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
+			"(handle)",
+		)
+		g.P("    if session == nil {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
+		g.P()
 		g.P("    adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
 		g.P("    session.SetHandlerState(adaptorStream)")
 		g.P("    go func() {")
@@ -794,11 +884,33 @@ func generateBidiStreamingMethod(
 		g.P("        }")
 		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("    }()")
+		g.P()
+		g.P("    _ = childCtx // Used in goroutine")
+		g.P("    return uint64(handle), nil")
+		g.P("}")
+		g.P()
+		goto bidiSend
 	default:
 		g.P("    svc, ok := h.(", connectHandlerIface, ")")
 		g.P("    if !ok {")
 		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrHandlerTypeMismatch")))
 		g.P("    }")
+		g.P()
+		g.P(
+			"    handle, childCtx, _ := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("AllocateStreamHandle")),
+			"(ctx, protocol)",
+		)
+		g.P(
+			"    session := ",
+			g.QualifiedGoIdent(rpcRuntimePkg.Ident("GetStreamSession")),
+			"(handle)",
+		)
+		g.P("    if session == nil {")
+		g.P("        return 0, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("ErrInvalidStreamHandle")))
+		g.P("    }")
+		g.P("    session.SetCallbacks(func(resp any) bool { return onRead(resp.(*", respType, ")) }, onDone)")
+		g.P()
 		g.P("    conn := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("NewConnectStreamConn")), "(session)")
 		g.P(
 			"    connectStream := ",
@@ -817,13 +929,15 @@ func generateBidiStreamingMethod(
 		g.P("        }")
 		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
 		g.P("    }()")
+		g.P()
+		g.P("    _ = childCtx // Used in goroutine")
+		g.P("    return uint64(handle), nil")
+		g.P("}")
+		g.P()
+		goto bidiSend
 	}
 
-	g.P()
-	g.P("    _ = childCtx // Used in goroutine")
-	g.P("    return uint64(handle), nil")
-	g.P("}")
-	g.P()
+bidiSend:
 
 	// Send function
 	g.P("// ", funcPrefix, "Send sends a request message to the stream.")
@@ -852,9 +966,9 @@ func generateBidiStreamingMethod(
 	g.P()
 }
 
-// generateStreamAdaptorType generates the adaptor struct that implements grpc's *_Server stream interface.
+// generateGrpcStreamAdaptorType generates the adaptor struct that implements grpc's *_Server stream interface.
 // This bridges the rpcruntime.streamSession with grpc's streaming expectations.
-func generateStreamAdaptorType(
+func generateGrpcStreamAdaptorType(
 	g *protogen.GeneratedFile,
 	file *protogen.File,
 	service *protogen.Service,

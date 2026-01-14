@@ -62,11 +62,6 @@ func StreamService_ClientStreamCallStart(ctx context.Context) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	handle, childCtx, _ := rpcruntime.AllocateStreamHandle(ctx, protocol)
-	session := rpcruntime.GetStreamSession(handle)
-	if session == nil {
-		return 0, rpcruntime.ErrInvalidStreamHandle
-	}
 
 	svc, ok := h.(interface {
 		ClientStreamCall(context.Context, *connect.ClientStream[StreamRequest]) (*StreamResponse, error)
@@ -74,6 +69,13 @@ func StreamService_ClientStreamCallStart(ctx context.Context) (uint64, error) {
 	if !ok {
 		return 0, rpcruntime.ErrHandlerTypeMismatch
 	}
+
+	handle, childCtx, _ := rpcruntime.AllocateStreamHandle(ctx, protocol)
+	session := rpcruntime.GetStreamSession(handle)
+	if session == nil {
+		return 0, rpcruntime.ErrInvalidStreamHandle
+	}
+
 	conn := rpcruntime.NewConnectStreamConn(session)
 	connectStream := rpcruntime.NewClientStream[StreamRequest](conn)
 	go func() {
@@ -113,6 +115,15 @@ func StreamService_ServerStreamCall(ctx context.Context, req *StreamRequest, onR
 		onDone(err)
 		return err
 	}
+
+	svc, ok := h.(interface {
+		ServerStreamCall(context.Context, *StreamRequest, *connect.ServerStream[StreamResponse]) error
+	})
+	if !ok {
+		onDone(rpcruntime.ErrHandlerTypeMismatch)
+		return rpcruntime.ErrHandlerTypeMismatch
+	}
+
 	handle, _, _ := rpcruntime.AllocateStreamHandle(ctx, protocol)
 	session := rpcruntime.GetStreamSession(handle)
 	if session == nil {
@@ -121,14 +132,6 @@ func StreamService_ServerStreamCall(ctx context.Context, req *StreamRequest, onR
 	}
 	session.SetCallbacks(func(resp any) bool { return onRead(resp.(*StreamResponse)) }, onDone)
 
-	svc, ok := h.(interface {
-		ServerStreamCall(context.Context, *StreamRequest, *connect.ServerStream[StreamResponse]) error
-	})
-	if !ok {
-		rpcruntime.FinishStreamHandle(handle)
-		onDone(rpcruntime.ErrHandlerTypeMismatch)
-		return rpcruntime.ErrHandlerTypeMismatch
-	}
 	conn := rpcruntime.NewConnectStreamConn(session)
 	connectStream := rpcruntime.NewServerStream[StreamResponse](conn)
 	err = svc.ServerStreamCall(ctx, req, connectStream)
@@ -147,12 +150,6 @@ func StreamService_BidiStreamCallStart(ctx context.Context, onRead func(*StreamR
 	if err != nil {
 		return 0, err
 	}
-	handle, childCtx, _ := rpcruntime.AllocateStreamHandle(ctx, protocol)
-	session := rpcruntime.GetStreamSession(handle)
-	if session == nil {
-		return 0, rpcruntime.ErrInvalidStreamHandle
-	}
-	session.SetCallbacks(func(resp any) bool { return onRead(resp.(*StreamResponse)) }, onDone)
 
 	svc, ok := h.(interface {
 		BidiStreamCall(context.Context, *connect.BidiStream[StreamRequest, StreamResponse]) error
@@ -160,6 +157,14 @@ func StreamService_BidiStreamCallStart(ctx context.Context, onRead func(*StreamR
 	if !ok {
 		return 0, rpcruntime.ErrHandlerTypeMismatch
 	}
+
+	handle, childCtx, _ := rpcruntime.AllocateStreamHandle(ctx, protocol)
+	session := rpcruntime.GetStreamSession(handle)
+	if session == nil {
+		return 0, rpcruntime.ErrInvalidStreamHandle
+	}
+	session.SetCallbacks(func(resp any) bool { return onRead(resp.(*StreamResponse)) }, onDone)
+
 	conn := rpcruntime.NewConnectStreamConn(session)
 	connectStream := rpcruntime.NewBidiStream[StreamRequest, StreamResponse](conn)
 	session.SetHandlerState(connectStream)

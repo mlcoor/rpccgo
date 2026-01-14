@@ -31,7 +31,6 @@ func (m *mockConnectHandler) Ping(context.Context, *PingRequest) (*PingResponse,
 	return &PingResponse{Msg: "should-not-happen"}, nil
 }
 
-
 func TestGrpcAdaptor(t *testing.T) {
 	t.Run("ServiceNotRegistered", func(t *testing.T) {
 		ctx := context.Background()
@@ -45,7 +44,10 @@ func TestGrpcAdaptor(t *testing.T) {
 
 	t.Run("SingleProtocolGrpc_IgnoresConnectHandler", func(t *testing.T) {
 		connectCalled := false
-		_, err := rpcruntime.RegisterConnectHandler(TestService_ServiceName, &mockConnectHandler{called: &connectCalled})
+		_, err := rpcruntime.RegisterConnectHandler(
+			TestService_ServiceName,
+			&mockConnectHandler{called: &connectCalled},
+		)
 		if err != nil {
 			t.Fatalf("RegisterConnectHandler failed: %v", err)
 		}
