@@ -2,6 +2,7 @@ package rpcruntime
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -209,4 +210,16 @@ func clearStreamRegistry() {
 		session.cancel()
 		delete(streamRegistry, id)
 	}
+}
+
+// RecoverPanic converts a recovered panic value to an error.
+// Use this in defer to safely handle panics in handler goroutines.
+func RecoverPanic(r any) error {
+	if r == nil {
+		return nil
+	}
+	if err, ok := r.(error); ok {
+		return fmt.Errorf("panic: %w", err)
+	}
+	return fmt.Errorf("panic: %v", r)
 }

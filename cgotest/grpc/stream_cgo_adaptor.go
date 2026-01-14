@@ -264,6 +264,11 @@ func StreamService_ClientStreamCallStart(ctx context.Context) (uint64, error) {
 	adaptorStream := &streamService_ClientStreamCallServerAdaptor{session: session}
 	session.SetHandlerState(adaptorStream)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				rpcruntime.CompleteClientStream(handle, nil, rpcruntime.RecoverPanic(r))
+			}
+		}()
 		err := svc.ClientStreamCall(adaptorStream)
 		rpcruntime.CompleteClientStream(handle, adaptorStream.lastResp, err)
 	}()
@@ -348,6 +353,14 @@ func StreamService_BidiStreamCallStart(ctx context.Context, onRead func(*StreamR
 	adaptorStream := &streamService_BidiStreamCallServerAdaptor{session: session}
 	session.SetHandlerState(adaptorStream)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if cb := session.OnDone(); cb != nil {
+					cb(rpcruntime.RecoverPanic(r))
+				}
+				rpcruntime.FinishStreamHandle(handle)
+			}
+		}()
 		err := svc.BidiStreamCall(adaptorStream)
 		if cb := session.OnDone(); cb != nil {
 			cb(err)

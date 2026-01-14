@@ -458,6 +458,11 @@ func generateClientStreamingMethod(
 		)
 		g.P("        session.SetHandlerState(adaptorStream)")
 		g.P("        go func() {")
+		g.P("            defer func() {")
+		g.P("                if r := recover(); r != nil {")
+		g.P("                    ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, nil, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("                }")
+		g.P("            }()")
 		g.P("            err := grpcSvc.", method.GoName, "(adaptorStream)")
 		g.P(
 			"            ",
@@ -475,6 +480,11 @@ func generateClientStreamingMethod(
 			"](conn)",
 		)
 		g.P("        go func() {")
+		g.P("            defer func() {")
+		g.P("                if r := recover(); r != nil {")
+		g.P("                    ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, nil, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("                }")
+		g.P("            }()")
 		g.P("            resp, err := connectSvc.", method.GoName, "(childCtx, connectStream)")
 		g.P("            ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, resp, err)")
 		g.P("        }()")
@@ -502,6 +512,11 @@ func generateClientStreamingMethod(
 		g.P("    adaptorStream := &", unexport(service.GoName+"_"+method.GoName+"Server"), "Adaptor{session: session}")
 		g.P("    session.SetHandlerState(adaptorStream)")
 		g.P("    go func() {")
+		g.P("        defer func() {")
+		g.P("            if r := recover(); r != nil {")
+		g.P("                ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, nil, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("            }")
+		g.P("        }()")
 		g.P("        err := svc.", method.GoName, "(adaptorStream)")
 		g.P(
 			"        ",
@@ -538,6 +553,11 @@ func generateClientStreamingMethod(
 			"](conn)",
 		)
 		g.P("    go func() {")
+		g.P("        defer func() {")
+		g.P("            if r := recover(); r != nil {")
+		g.P("                ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, nil, ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("            }")
+		g.P("        }()")
 		g.P("        resp, err := svc.", method.GoName, "(childCtx, connectStream)")
 		g.P("        ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("CompleteClientStream")), "(handle, resp, err)")
 		g.P("    }()")
@@ -587,7 +607,11 @@ func unexport(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	return string(s[0]+'a'-'A') + s[1:]
+	r := []rune(s)
+	if r[0] >= 'A' && r[0] <= 'Z' {
+		r[0] = r[0] + ('a' - 'A')
+	}
+	return string(r)
 }
 
 func generateServerStreamingMethod(
@@ -823,6 +847,14 @@ func generateBidiStreamingMethod(
 		g.P("        adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
 		g.P("        session.SetHandlerState(adaptorStream)")
 		g.P("        go func() {")
+		g.P("            defer func() {")
+		g.P("                if r := recover(); r != nil {")
+		g.P("                    if cb := session.OnDone(); cb != nil {")
+		g.P("                        cb(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("                    }")
+		g.P("                    ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
+		g.P("                }")
+		g.P("            }()")
 		g.P("            err := grpcSvc.", method.GoName, "(adaptorStream)")
 		g.P("            if cb := session.OnDone(); cb != nil {")
 		g.P("                cb(err)")
@@ -842,6 +874,14 @@ func generateBidiStreamingMethod(
 		)
 		g.P("        session.SetHandlerState(connectStream)")
 		g.P("        go func() {")
+		g.P("            defer func() {")
+		g.P("                if r := recover(); r != nil {")
+		g.P("                    if cb := session.OnDone(); cb != nil {")
+		g.P("                        cb(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("                    }")
+		g.P("                    ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
+		g.P("                }")
+		g.P("            }()")
 		g.P("            err := connectSvc.", method.GoName, "(childCtx, connectStream)")
 		g.P("            if cb := session.OnDone(); cb != nil {")
 		g.P("                cb(err)")
@@ -879,6 +919,14 @@ func generateBidiStreamingMethod(
 		g.P("    adaptorStream := &", unexport(streamIface), "Adaptor{session: session}")
 		g.P("    session.SetHandlerState(adaptorStream)")
 		g.P("    go func() {")
+		g.P("        defer func() {")
+		g.P("            if r := recover(); r != nil {")
+		g.P("                if cb := session.OnDone(); cb != nil {")
+		g.P("                    cb(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("                }")
+		g.P("                ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
+		g.P("            }")
+		g.P("        }()")
 		g.P("        err := svc.", method.GoName, "(adaptorStream)")
 		g.P("        if cb := session.OnDone(); cb != nil {")
 		g.P("            cb(err)")
@@ -924,6 +972,14 @@ func generateBidiStreamingMethod(
 		)
 		g.P("    session.SetHandlerState(connectStream)")
 		g.P("    go func() {")
+		g.P("        defer func() {")
+		g.P("            if r := recover(); r != nil {")
+		g.P("                if cb := session.OnDone(); cb != nil {")
+		g.P("                    cb(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("RecoverPanic")), "(r))")
+		g.P("                }")
+		g.P("                ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("FinishStreamHandle")), "(handle)")
+		g.P("            }")
+		g.P("        }()")
 		g.P("        err := svc.", method.GoName, "(childCtx, connectStream)")
 		g.P("        if cb := session.OnDone(); cb != nil {")
 		g.P("            cb(err)")

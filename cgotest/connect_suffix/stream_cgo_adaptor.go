@@ -79,6 +79,11 @@ func StreamService_ClientStreamCallStart(ctx context.Context) (uint64, error) {
 	conn := rpcruntime.NewConnectStreamConn(session)
 	connectStream := rpcruntime.NewClientStream[StreamRequest](conn)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				rpcruntime.CompleteClientStream(handle, nil, rpcruntime.RecoverPanic(r))
+			}
+		}()
 		resp, err := svc.ClientStreamCall(childCtx, connectStream)
 		rpcruntime.CompleteClientStream(handle, resp, err)
 	}()
@@ -169,6 +174,14 @@ func StreamService_BidiStreamCallStart(ctx context.Context, onRead func(*StreamR
 	connectStream := rpcruntime.NewBidiStream[StreamRequest, StreamResponse](conn)
 	session.SetHandlerState(connectStream)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if cb := session.OnDone(); cb != nil {
+					cb(rpcruntime.RecoverPanic(r))
+				}
+				rpcruntime.FinishStreamHandle(handle)
+			}
+		}()
 		err := svc.BidiStreamCall(childCtx, connectStream)
 		if cb := session.OnDone(); cb != nil {
 			cb(err)
