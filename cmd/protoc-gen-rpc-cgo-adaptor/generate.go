@@ -12,6 +12,7 @@ const (
 	rpcRuntimePkg  = protogen.GoImportPath("github.com/ygrpc/rpccgo/rpcruntime")
 	grpcPackage    = protogen.GoImportPath("google.golang.org/grpc")
 	connectPackage = protogen.GoImportPath("connectrpc.com/connect")
+	protoPackage   = protogen.GoImportPath("google.golang.org/protobuf/proto")
 )
 
 func generateFile(gen *protogen.Plugin, file *protogen.File, opts GeneratorOptions) *protogen.GeneratedFile {
@@ -1049,10 +1050,11 @@ func generateGrpcStreamAdaptorType(
 	g.P("        if !ok {")
 	g.P("            return ", g.QualifiedGoIdent(protogen.GoImportPath("io").Ident("EOF")))
 	g.P("        }")
-	g.P("        // Copy message to m")
+	g.P("        // Copy message to m using proto.Merge to avoid copying mutex")
 	g.P("        if src, ok := msg.(*", reqType, "); ok {")
 	g.P("            if dst, ok := m.(*", reqType, "); ok {")
-	g.P("                *dst = *src")
+	g.P("                ", g.QualifiedGoIdent(protoPackage.Ident("Reset")), "(dst)")
+	g.P("                ", g.QualifiedGoIdent(protoPackage.Ident("Merge")), "(dst, src)")
 	g.P("            }")
 	g.P("        }")
 	g.P("        return nil")

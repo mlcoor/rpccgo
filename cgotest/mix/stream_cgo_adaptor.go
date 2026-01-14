@@ -10,6 +10,7 @@ import (
 	context "context"
 	rpcruntime "github.com/ygrpc/rpccgo/rpcruntime"
 	metadata "google.golang.org/grpc/metadata"
+	proto "google.golang.org/protobuf/proto"
 	io "io"
 )
 
@@ -96,10 +97,11 @@ func (a *streamService_ClientStreamCallServerAdaptor) RecvMsg(m any) error {
 		if !ok {
 			return io.EOF
 		}
-		// Copy message to m
+		// Copy message to m using proto.Merge to avoid copying mutex
 		if src, ok := msg.(*StreamRequest); ok {
 			if dst, ok := m.(*StreamRequest); ok {
-				*dst = *src
+				proto.Reset(dst)
+				proto.Merge(dst, src)
 			}
 		}
 		return nil
@@ -161,10 +163,11 @@ func (a *streamService_ServerStreamCallServerAdaptor) RecvMsg(m any) error {
 		if !ok {
 			return io.EOF
 		}
-		// Copy message to m
+		// Copy message to m using proto.Merge to avoid copying mutex
 		if src, ok := msg.(*StreamRequest); ok {
 			if dst, ok := m.(*StreamRequest); ok {
-				*dst = *src
+				proto.Reset(dst)
+				proto.Merge(dst, src)
 			}
 		}
 		return nil
@@ -216,10 +219,11 @@ func (a *streamService_BidiStreamCallServerAdaptor) RecvMsg(m any) error {
 		if !ok {
 			return io.EOF
 		}
-		// Copy message to m
+		// Copy message to m using proto.Merge to avoid copying mutex
 		if src, ok := msg.(*StreamRequest); ok {
 			if dst, ok := m.(*StreamRequest); ok {
-				*dst = *src
+				proto.Reset(dst)
+				proto.Merge(dst, src)
 			}
 		}
 		return nil
