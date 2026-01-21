@@ -1,0 +1,54 @@
+// Copyright 2025 YGRPC Authors.
+// SPDX-License-Identifier: Apache-2.0
+//
+// CGO export generation options for protoc-gen-rpc-cgo.
+
+syntax = "proto3";
+
+package ygrpc.cgo;
+
+option go_package = "github.com/ygrpc/rpccgo/proto/ygrpc/cgo;cgo";
+
+import "google/protobuf/descriptor.proto";
+
+// RequestFreeMode controls TakeReq variant generation.
+//
+// Semantics:
+//   - REQ_FREE_NONE: Only generate standard variant (no TakeReq).
+//   - REQ_FREE_TAKE_REQ: Only generate TakeReq variant.
+//   - REQ_FREE_BOTH: Generate both standard and TakeReq variants.
+enum RequestFreeMode {
+  REQ_FREE_NONE = 0;
+  REQ_FREE_TAKE_REQ = 1;
+  REQ_FREE_BOTH = 2;
+}
+
+// NativeMode controls Native variant generation for flat messages.
+//   - NATIVE_DISABLE: Do not generate Native variants.
+//   - NATIVE_ENABLE: Generate Native variants for eligible (flat) messages.
+enum NativeMode {
+  NATIVE_DISABLE = 0;
+  NATIVE_ENABLE = 1;
+}
+
+// File-level options for CGO generation defaults.
+extend google.protobuf.FileOptions {
+  // Default request free mode for all methods in this file.
+  // Default: REQ_FREE_NONE (only standard variant).
+  optional RequestFreeMode ygrpc_cgo_req_free_default = 50100;
+
+  // Default native mode for all methods in this file.
+  // Default: NATIVE_DISABLE.
+  optional NativeMode ygrpc_cgo_native_default = 50101;
+}
+
+// Method-level options for CGO generation.
+extend google.protobuf.MethodOptions {
+  // Override request free mode for this specific method.
+  // If unset, uses file-level ygrpc_cgo_req_free_default.
+  optional RequestFreeMode ygrpc_cgo_req_free_method = 50102;
+
+  // Override native mode for this specific method.
+  // If unset, uses file-level ygrpc_cgo_native_default.
+  optional NativeMode ygrpc_cgo_native = 50103;
+}

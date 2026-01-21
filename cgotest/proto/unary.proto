@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package cgotest;
+
+import "ygrpc/cgo/options.proto";
+
+option go_package = "github.com/ygrpc/rpccgo/cgotest;cgotest";
+
+// File-level defaults (can be overridden by method options).
+option (ygrpc.cgo.ygrpc_cgo_native_default) = NATIVE_ENABLE;
+option (ygrpc.cgo.ygrpc_cgo_req_free_default) = REQ_FREE_BOTH;
+
+service TestService {
+  rpc Ping(PingRequest) returns (PingResponse) {
+    option (ygrpc.cgo.ygrpc_cgo_native) = NATIVE_ENABLE;
+  }
+  rpc PingOpt1(PingRequestOpt1) returns (PingResponse) {
+    option (ygrpc.cgo.ygrpc_cgo_req_free_method) = REQ_FREE_TAKE_REQ;
+  }
+  rpc PingOpt2(PingRequestOpt2) returns (PingResponse) {
+    option (ygrpc.cgo.ygrpc_cgo_native) = NATIVE_DISABLE;
+    option (ygrpc.cgo.ygrpc_cgo_req_free_method) = REQ_FREE_NONE;
+  }
+  rpc NonFlat(NonFlatRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string msg = 1;
+}
+
+message PingRequestOpt1 {
+  string msg = 1;
+}
+
+message PingRequestOpt2 {
+  string msg = 1;
+  int32 id = 2;
+}
+
+message PingResponse {
+  string msg = 1;
+}
+
+message NonFlatRequest {
+  repeated int32 ids = 1;
+}

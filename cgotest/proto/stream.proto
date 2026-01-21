@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package cgotest;
+
+import "ygrpc/cgo/options.proto";
+
+option go_package = "github.com/ygrpc/rpccgo/cgotest;cgotest";
+
+option (ygrpc.cgo.ygrpc_cgo_native_default) = NATIVE_ENABLE;
+option (ygrpc.cgo.ygrpc_cgo_req_free_default) = REQ_FREE_BOTH;
+
+// StreamService demonstrates all four RPC streaming patterns.
+service StreamService {
+  // Unary RPC.
+  rpc UnaryCall(StreamRequest) returns (StreamResponse);
+
+  // Client-streaming RPC: client sends a stream of requests, server responds once.
+  rpc ClientStreamCall(stream StreamRequest) returns (StreamResponse);
+
+  // Server-streaming RPC: client sends one request, server responds with a stream.
+  rpc ServerStreamCall(StreamRequest) returns (stream StreamResponse);
+
+  // Bidi-streaming RPC: both client and server send streams concurrently.
+  rpc BidiStreamCall(stream StreamRequest) returns (stream StreamResponse);
+}
+
+message StreamRequest {
+  string data = 1;
+  int32 sequence = 2;
+}
+
+message StreamResponse {
+  string result = 1;
+  int32 sequence = 2;
+}
