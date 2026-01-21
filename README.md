@@ -28,8 +28,10 @@ sequenceDiagram
 ### 你会用到的组件
 
 - `rpcruntime`：运行时（处理器注册表、协议选择、流句柄、错误注册表等）。
-- `protoc-gen-rpc-cgo-adaptor`：生成 **Go 侧 adaptor**（在 Go/CGO 层面调度到已注册的处理器）。
-- `protoc-gen-rpc-cgo`：生成 **C ABI 导出代码**（需要 C 端端到端调用时使用；可参考 `cgotest/`）。
+- `protoc-gen-rpc-cgo-adaptor`：生成 **Go 侧 adaptor**（文件名通常是 `*_cgo_adaptor.go`，但它本身不导出 C ABI；它负责把调用分发到已注册的 handler）。
+- `protoc-gen-rpc-cgo`：生成 **C ABI 导出代码**（给 C/C++ 直接链接调用的 `.h/.so`）。
+
+> 实践上建议像 [cgotest/](cgotest/) 一样把「pb+adaptor」与「C ABI 导出」分到不同目录生成，避免把两类产物混在同一个 Go 包里。
 
 ## 快速开始 (Quick Start)
 
@@ -385,7 +387,7 @@ go install github.com/ygrpc/rpccgo/cmd/protoc-gen-rpc-cgo-adaptor@latest
 mkdir -p rpccgo-demo && cd rpccgo-demo
 go mod init example.com/rpccgo-demo
 go get github.com/ygrpc/rpccgo/rpcruntime@latest
-mkdir -p proto gen cmd/demo
+mkdir -p proto grpc cgo_grpc cmd/demo
 ```
 
 ### Proto 定义 (Proto Definition)
@@ -395,7 +397,7 @@ mkdir -p proto gen cmd/demo
 ```protobuf
 syntax = "proto3";
 package example;
-option go_package = "example.com/rpccgo-demo/gen;gen";
+option go_package = "example.com/rpccgo-demo/grpc;demo_grpc";
 
 service Greeter {
   rpc SayHello(HelloRequest) returns (HelloResponse);
@@ -413,18 +415,21 @@ message HelloResponse {
 ### 生成代码 (Generate Code)
 
 ```bash
-# 写入 proto/proto/greeter.proto（文件名随意，这里用 greeter.proto）
-# 生成 protobuf & gRPC 代码
-protoc -I ./proto \
-    --go_out=./gen --go_opt=paths=source_relative \
-    --go-grpc_out=./gen --go-grpc_opt=paths=source_relative \
+# 写入 proto/greeter.proto（文件名随意，这里用 greeter.proto）
+# 建议像 cgotest 一样显式指定 M<file>.proto 的 Go 包映射，避免目录/包名不一致。
+GO_PKG="Mgreeter.proto=example.com/rpccgo-demo/grpc;demo_grpc"
+
+# 生成 protobuf & gRPC 代码（到 ./grpc 目录）
+protoc -Iproto \
+    --go_out=./grpc --go_opt=paths=source_relative,${GO_PKG} \
+    --go-grpc_out=./grpc --go-grpc_opt=paths=source_relative,${GO_PKG} \
     ./proto/greeter.proto
 
-# 生成 CGO 适配器
-protoc -I ./proto \
-  --rpc-cgo-adaptor_out=./gen \
-  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc \
-  ./proto/greeter.proto
+# 生成 rpccgo adaptor（纯 Go，输出也放到 ./grpc 目录）
+protoc -Iproto \
+    --rpc-cgo-adaptor_out=./grpc \
+    --rpc-cgo-adaptor_opt=paths=source_relative,protocol=grpc,${GO_PKG} \
+    ./proto/greeter.proto
 ```
 
 ### 2. 编写并运行 demo
@@ -439,15 +444,15 @@ import (
     "fmt"
 
     "github.com/ygrpc/rpccgo/rpcruntime"
-    "example.com/rpccgo-demo/gen"
+    grpcpb "example.com/rpccgo-demo/grpc"
 )
 
 type GreeterServer struct {
-    gen.UnimplementedGreeterServer
+    grpcpb.UnimplementedGreeterServer
 }
 
-func (s *GreeterServer) SayHello(ctx context.Context, req *gen.HelloRequest) (*gen.HelloResponse, error) {
-    return &gen.HelloResponse{Message: "Hello, " + req.GetName()}, nil
+func (s *GreeterServer) SayHello(ctx context.Context, req *grpcpb.HelloRequest) (*grpcpb.HelloResponse, error) {
+    return &grpcpb.HelloResponse{Message: "Hello, " + req.GetName()}, nil
 }
 
 func main() {
@@ -459,7 +464,7 @@ func main() {
 
     // 通过适配器调用
     ctx := context.Background()
-    resp, err := gen.Greeter_SayHello(ctx, &gen.HelloRequest{Name: "World"})
+    resp, err := grpcpb.Greeter_SayHello(ctx, &grpcpb.HelloRequest{Name: "World"})
     if err != nil {
         panic(err)
     }
@@ -479,7 +484,21 @@ go run ./cmd/demo
 Hello, World
 ```
 
-### 3. 下一步：如果你需要给 C/C++ 直接调用
+### 3. 下一步：生成 C ABI（注意输出到独立目录）
 
-请使用 `protoc-gen-rpc-cgo` 生成 C ABI 导出代码，并用 `-buildmode=c-shared` 构建 `.so` + `.h`。
-仓库里 [cgotest/](cgotest/) 目录提供了完整的端到端脚本与 C 测试样例，可直接参考。
+`protoc-gen-rpc-cgo` 生成的是 **package main + //export** 形式的导出代码，必须单独放在一个目录（例如 `./cgo_grpc`），不要与 `./grpc`（pb+adaptor）混在同一个 Go 包里。
+
+```bash
+go install github.com/ygrpc/rpccgo/cmd/protoc-gen-rpc-cgo@latest
+
+GO_PKG="Mgreeter.proto=example.com/rpccgo-demo/grpc;demo_grpc"
+
+protoc -Iproto \
+    --rpc-cgo_out=./cgo_grpc \
+    --rpc-cgo_opt=paths=source_relative,${GO_PKG} \
+    ./proto/greeter.proto
+
+go build -buildmode=c-shared -o ./libygrpc.so ./cgo_grpc
+```
+
+更完整的脚本（含 `.h` 拷贝、C 端测试、协议矩阵等）可直接参考 [cgotest/](cgotest/)。
