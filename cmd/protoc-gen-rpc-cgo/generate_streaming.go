@@ -305,7 +305,7 @@ func generateServerStreamBinary(
 	g.P("    reqLen C.int,")
 	g.P("    onReadBytes unsafe.Pointer,")
 	g.P("    onDone unsafe.Pointer,")
-	g.P("    userData unsafe.Pointer,")
+	g.P("    callID C.uint64_t,")
 	g.P(") C.int {")
 	g.P("    reqBytes := C.GoBytes(reqPtr, reqLen)")
 	g.P("    req := &", reqType, "{}")
@@ -321,7 +321,7 @@ func generateServerStreamBinary(
 	g.P("        }")
 	g.P("        respCopy := C.CBytes(respBytes)")
 	g.P(
-		"        C.call_on_read_bytes(onReadBytes, respCopy, C.int(len(respBytes)), (C.FreeFunc)(C.Ygrpc_Free), userData)",
+		"        C.call_on_read_bytes(onReadBytes, callID, respCopy, C.int(len(respBytes)), (C.FreeFunc)(C.Ygrpc_Free))",
 	)
 	g.P("        return true")
 	g.P("    }")
@@ -331,7 +331,7 @@ func generateServerStreamBinary(
 	g.P("        } else {")
 	g.P("            doneErrId.Store(0)")
 	g.P("        }")
-	g.P("        C.call_on_done(onDone, C.int(doneErrId.Load()), userData)")
+	g.P("        C.call_on_done(onDone, callID, C.int(doneErrId.Load()))")
 	g.P("    }")
 	g.P("    err := ", adaptorCall, "(ctx, req, onRead, onDoneFunc)")
 	g.P("    if err != nil {")
@@ -359,7 +359,7 @@ func generateServerStreamBinaryTakeReq(
 	g.P("    reqFree C.FreeFunc,")
 	g.P("    onReadBytes unsafe.Pointer,")
 	g.P("    onDone unsafe.Pointer,")
-	g.P("    userData unsafe.Pointer,")
+	g.P("    callID C.uint64_t,")
 	g.P(") C.int {")
 	g.P("    reqBytes := C.GoBytes(reqPtr, reqLen)")
 	g.P("    if reqFree != nil {")
@@ -378,7 +378,7 @@ func generateServerStreamBinaryTakeReq(
 	g.P("        }")
 	g.P("        respCopy := C.CBytes(respBytes)")
 	g.P(
-		"        C.call_on_read_bytes(onReadBytes, respCopy, C.int(len(respBytes)), (C.FreeFunc)(C.Ygrpc_Free), userData)",
+		"        C.call_on_read_bytes(onReadBytes, callID, respCopy, C.int(len(respBytes)), (C.FreeFunc)(C.Ygrpc_Free))",
 	)
 	g.P("        return true")
 	g.P("    }")
@@ -388,7 +388,7 @@ func generateServerStreamBinaryTakeReq(
 	g.P("        } else {")
 	g.P("            doneErrId.Store(0)")
 	g.P("        }")
-	g.P("        C.call_on_done(onDone, C.int(doneErrId.Load()), userData)")
+	g.P("        C.call_on_done(onDone, callID, C.int(doneErrId.Load()))")
 	g.P("    }")
 	g.P("    err := ", adaptorCall, "(ctx, req, onRead, onDoneFunc)")
 	g.P("    if err != nil {")
@@ -418,7 +418,7 @@ func generateServerStreamNative(
 	generateNativeReqParams(g, reqMsg)
 	g.P("    onReadNative unsafe.Pointer,")
 	g.P("    onDone unsafe.Pointer,")
-	g.P("    userData unsafe.Pointer,")
+	g.P("    callID C.uint64_t,")
 	g.P(") C.int {")
 	g.P("    req := &", reqType, "{}")
 	generateNativeReqAssignments(g, reqMsg)
@@ -471,7 +471,7 @@ func generateServerStreamNative(
 		}
 	}
 	// Invoke callback.
-	g.P("        C.", wrapper, "(onReadNative, userData,")
+	g.P("        C.", wrapper, "(onReadNative, callID,")
 	for _, field := range fields {
 		param := nativeParamName(field, "")
 		if isBytesOrStringField(field) {
@@ -489,7 +489,7 @@ func generateServerStreamNative(
 	g.P("        } else {")
 	g.P("            doneErrId.Store(0)")
 	g.P("        }")
-	g.P("        C.call_on_done(onDone, C.int(doneErrId.Load()), userData)")
+	g.P("        C.call_on_done(onDone, callID, C.int(doneErrId.Load()))")
 	g.P("    }")
 	g.P("    err := ", adaptorCall, "(ctx, req, onRead, onDoneFunc)")
 	g.P("    if err != nil {")
@@ -519,7 +519,7 @@ func generateServerStreamNativeTakeReq(
 	generateNativeReqParamsTakeReq(g, reqMsg)
 	g.P("    onReadNative unsafe.Pointer,")
 	g.P("    onDone unsafe.Pointer,")
-	g.P("    userData unsafe.Pointer,")
+	g.P("    callID C.uint64_t,")
 	g.P(") C.int {")
 	g.P("    req := &", reqType, "{}")
 	generateNativeReqAssignmentsTakeReq(g, reqMsg)
@@ -569,7 +569,7 @@ func generateServerStreamNativeTakeReq(
 			g.P("        ", param, " := C.int64_t(0)")
 		}
 	}
-	g.P("        C.", wrapper, "(onReadNative, userData,")
+	g.P("        C.", wrapper, "(onReadNative, callID,")
 	for _, field := range fields {
 		param := nativeParamName(field, "")
 		if isBytesOrStringField(field) {
@@ -587,7 +587,7 @@ func generateServerStreamNativeTakeReq(
 	g.P("        } else {")
 	g.P("            doneErrId.Store(0)")
 	g.P("        }")
-	g.P("        C.call_on_done(onDone, C.int(doneErrId.Load()), userData)")
+	g.P("        C.call_on_done(onDone, callID, C.int(doneErrId.Load()))")
 	g.P("    }")
 	g.P("    err := ", adaptorCall, "(ctx, req, onRead, onDoneFunc)")
 	g.P("    if err != nil {")
@@ -647,33 +647,38 @@ func generateBidiStartBinary(g *protogen.GeneratedFile, funcName string, respTyp
 	g.P("func ", funcName, "(")
 	g.P("    onReadBytes unsafe.Pointer,")
 	g.P("    onDone unsafe.Pointer,")
-	g.P("    userData unsafe.Pointer,")
 	g.P("    outHandle *C.uint64_t,")
 	g.P(") C.int {")
 	g.P("    ctx := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("BackgroundContext")), "()")
+	g.P("    handleReady := make(chan struct{})")
+	g.P("    var streamHandle uint64")
 	g.P("    onRead := func(resp *", respType, ") bool {")
+	g.P("        <-handleReady")
 	g.P("        respBytes, err := ", g.QualifiedGoIdent(protoPackage.Ident("Marshal")), "(resp)")
 	g.P("        if err != nil {")
 	g.P("            return false")
 	g.P("        }")
 	g.P("        respCopy := C.CBytes(respBytes)")
 	g.P(
-		"        C.call_on_read_bytes(onReadBytes, respCopy, C.int(len(respBytes)), (C.FreeFunc)(C.Ygrpc_Free), userData)",
+		"        C.call_on_read_bytes(onReadBytes, C.uint64_t(streamHandle), respCopy, C.int(len(respBytes)), (C.FreeFunc)(C.Ygrpc_Free))",
 	)
 	g.P("        return true")
 	g.P("    }")
 	g.P("    onDoneFunc := func(err error) {")
+	g.P("        <-handleReady")
 	g.P("        errId := int64(0)")
 	g.P("        if err != nil {")
 	g.P("            errId = ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err)")
 	g.P("        }")
-	g.P("        C.call_on_done(onDone, C.int(errId), userData)")
+	g.P("        C.call_on_done(onDone, C.uint64_t(streamHandle), C.int(errId))")
 	g.P("    }")
 	g.P("    handle, err := ", adaptorStart, "(ctx, onRead, onDoneFunc)")
 	g.P("    if err != nil {")
 	g.P("        *outHandle = 0")
 	g.P("        return C.int(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err))")
 	g.P("    }")
+	g.P("    streamHandle = handle")
+	g.P("    close(handleReady)")
 	g.P("    *outHandle = C.uint64_t(handle)")
 	g.P("    return 0")
 	g.P("}")
@@ -748,11 +753,13 @@ func generateBidiStartNative(
 	g.P("func ", funcName, "(")
 	g.P("    onReadNative unsafe.Pointer,")
 	g.P("    onDone unsafe.Pointer,")
-	g.P("    userData unsafe.Pointer,")
 	g.P("    outHandle *C.uint64_t,")
 	g.P(") C.int {")
 	g.P("    ctx := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("BackgroundContext")), "()")
+	g.P("    handleReady := make(chan struct{})")
+	g.P("    var streamHandle uint64")
 	g.P("    onRead := func(resp *", respType, ") bool {")
+	g.P("        <-handleReady")
 	fields := sortedFieldsByNumber(respMsg)
 	for _, field := range fields {
 		param := nativeParamName(field, "")
@@ -795,7 +802,7 @@ func generateBidiStartNative(
 			g.P("        ", param, " := C.int64_t(0)")
 		}
 	}
-	g.P("        C.", wrapper, "(onReadNative, userData,")
+	g.P("        C.", wrapper, "(onReadNative, C.uint64_t(streamHandle),")
 	for _, field := range fields {
 		param := nativeParamName(field, "")
 		if isBytesOrStringField(field) {
@@ -808,17 +815,20 @@ func generateBidiStartNative(
 	g.P("        return true")
 	g.P("    }")
 	g.P("    onDoneFunc := func(err error) {")
+	g.P("        <-handleReady")
 	g.P("        errId := int64(0)")
 	g.P("        if err != nil {")
 	g.P("            errId = ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err)")
 	g.P("        }")
-	g.P("        C.call_on_done(onDone, C.int(errId), userData)")
+	g.P("        C.call_on_done(onDone, C.uint64_t(streamHandle), C.int(errId))")
 	g.P("    }")
 	g.P("    handle, err := ", adaptorStart, "(ctx, onRead, onDoneFunc)")
 	g.P("    if err != nil {")
 	g.P("        *outHandle = 0")
 	g.P("        return C.int(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err))")
 	g.P("    }")
+	g.P("    streamHandle = handle")
+	g.P("    close(handleReady)")
 	g.P("    *outHandle = C.uint64_t(handle)")
 	g.P("    return 0")
 	g.P("}")

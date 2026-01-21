@@ -9,12 +9,34 @@ import "C"
 
 import (
 	"unsafe"
+
 	"github.com/ygrpc/rpccgo/rpcruntime"
 )
 
 //export Ygrpc_Free
 func Ygrpc_Free(ptr unsafe.Pointer) {
 	C.free(ptr)
+}
+
+//export Ygrpc_SetProtocol
+func Ygrpc_SetProtocol(protocol C.int) C.int {
+	switch int(protocol) {
+	case 0:
+		rpcruntime.ClearDefaultProtocol()
+		return 0
+	case 1:
+		if err := rpcruntime.SetDefaultProtocol(rpcruntime.ProtocolGrpc); err != nil {
+			return C.int(rpcruntime.StoreError(err))
+		}
+		return 0
+	case 2:
+		if err := rpcruntime.SetDefaultProtocol(rpcruntime.ProtocolConnectRPC); err != nil {
+			return C.int(rpcruntime.StoreError(err))
+		}
+		return 0
+	default:
+		return C.int(rpcruntime.StoreError(rpcruntime.ErrUnknownProtocol))
+	}
 }
 
 //export Ygrpc_GetErrorMsg

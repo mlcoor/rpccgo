@@ -21,7 +21,12 @@ static void expect_eq_str(const char* got, int got_len, const char* want) {
 }
 
 int main(void) {
-    setenv("YGRPC_PROTOCOL", "", 1);
+    int rc = Ygrpc_SetProtocol(YGRPC_PROTOCOL_UNSET);
+    if (rc != 0)
+    {
+        fprintf(stderr, "Ygrpc_SetProtocol failed: %d\n", rc);
+        return 1;
+    }
 
     // Binary client-streaming: Start/Send/Finish
     {

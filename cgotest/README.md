@@ -41,6 +41,9 @@
 - Server-streaming：Binary + Native（callback + resp_free 验证）
 - Bidi-streaming：Binary + Native（Start 注册回调、Send、CloseSend）
 
-另外在 `connect`/`grpc`/`connect_suffix` 里会额外编译运行 `unary_test_mismatch`：
-- 通过设置 `YGRPC_PROTOCOL` 为“错误协议”来触发错误路径
-- 验证非 0 error id + `Ygrpc_GetErrorMsg` 返回消息与 free 函数可用
+补充说明：协议选择不再读取环境变量 `YGRPC_PROTOCOL`。
+
+- 如需在 C 侧强制指定协议，请在发起 RPC 前调用 `Ygrpc_SetProtocol(...)`：
+	- `YGRPC_PROTOCOL_UNSET`：清除默认协议
+	- `YGRPC_PROTOCOL_GRPC`
+	- `YGRPC_PROTOCOL_CONNECTRPC`

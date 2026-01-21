@@ -174,12 +174,14 @@ Semantics:
 - `resp_ptr/resp_len` is a protobuf-encoded message buffer.
 - `resp_free` frees `resp_ptr` and MUST be callable exactly once per message.
 - `onDone` is invoked exactly once when the stream ends; `error_id=0` indicates success, otherwise it is retrievable via `Ygrpc_GetErrorMsg`.
-- `user_data` SHALL be passed through unchanged from the initial exported function invocation to every callback invocation.
+- `call_id` SHALL be passed to every callback invocation as the first parameter.
+	- For server-streaming, `call_id` is supplied explicitly by the caller to the exported function.
+	- For bidi-streaming, `call_id` is the `streamHandle` returned by `Start`.
 
 For Native response callbacks, the generated ABI SHALL follow the same lifecycle semantics (onRead per message, onDone exactly once) and SHALL expose response fields using the native field mapping rules of this capability.
 
 Native callback parameter rules:
-- The onRead callback parameters (after `user_data`) SHALL list response fields ordered by protobuf field number ascending.
+- The onRead callback parameters (after `call_id`) SHALL list response fields ordered by protobuf field number ascending.
 - Numeric scalars and `bool` SHALL be passed by value.
 - Each `string` / `bytes` field SHALL be represented by `(const void* ptr, int len, FreeFunc free)`.
 - If the response message is not flat, the plugin SHALL NOT generate any native streaming exports for that method.
@@ -193,5 +195,4 @@ Native callback parameter rules:
 #### Scenario: Native streaming callback flattens fields
 - **GIVEN** a server-streaming method whose response message is flat with fields `string result = 1` and `int32 sequence = 2`
 - **WHEN** native exports are generated
-- **THEN** the generated native onRead callback type SHALL accept `user_data` and then the flattened response fields in field-number order
-
+- **THEN** the generated native onRead callback type SHALL accept `call_id` and then the flattened response fields in field-number order

@@ -32,45 +32,20 @@ extern const char *_GoStringPtr(_GoString_ s);
 #include "ygrpc_cgo_common.h"
 
 typedef void (*OnReadNativeFunc_StreamService_ServerStreamCall)(
-    void* result_ptr,
-    int result_len,
-    FreeFunc result_free,
-    int32_t sequence,
-    void* user_data
-);
-static inline void call_on_read_native_StreamService_ServerStreamCall(void* fn, void* user_data
-    , void* result_ptr
-    , int result_len
-    , FreeFunc result_free
-    , int32_t sequence
-) {
+    uint64_t call_id, void *result_ptr, int result_len, FreeFunc result_free, int32_t sequence);
+static inline void call_on_read_native_StreamService_ServerStreamCall(void *fn, uint64_t call_id, void *result_ptr, int result_len, FreeFunc result_free, int32_t sequence)
+{
     ((OnReadNativeFunc_StreamService_ServerStreamCall)fn)(
-        result_ptr, result_len, result_free,
-        sequence,
-        user_data
-    );
+        call_id, result_ptr, result_len, result_free, sequence);
 }
 
 typedef void (*OnReadNativeFunc_StreamService_BidiStreamCall)(
-    void* result_ptr,
-    int result_len,
-    FreeFunc result_free,
-    int32_t sequence,
-    void* user_data
-);
-static inline void call_on_read_native_StreamService_BidiStreamCall(void* fn, void* user_data
-    , void* result_ptr
-    , int result_len
-    , FreeFunc result_free
-    , int32_t sequence
-) {
+    uint64_t call_id, void *result_ptr, int result_len, FreeFunc result_free, int32_t sequence);
+static inline void call_on_read_native_StreamService_BidiStreamCall(void *fn, uint64_t call_id, void *result_ptr, int result_len, FreeFunc result_free, int32_t sequence)
+{
     ((OnReadNativeFunc_StreamService_BidiStreamCall)fn)(
-        result_ptr, result_len, result_free,
-        sequence,
-        user_data
-    );
+        call_id, result_ptr, result_len, result_free, sequence);
 }
-
 
 #line 1 "cgo-generated-wrapper"
 
@@ -142,6 +117,7 @@ extern "C" {
 #endif
 
 extern void Ygrpc_Free(void* ptr);
+extern int Ygrpc_SetProtocol(int protocol);
 extern int Ygrpc_GetErrorMsg(int errorID, void** msgPtr, int* msgLen, FreeFunc* msgFree);
 extern int Ygrpc_StreamService_UnaryCall(void* reqPtr, int reqLen, void** respPtr, int* respLen, FreeFunc* respFree);
 extern int Ygrpc_StreamService_UnaryCall_TakeReq(void* reqPtr, int reqLen, FreeFunc reqFree, void** respPtr, int* respLen, FreeFunc* respFree);
@@ -155,15 +131,15 @@ extern int Ygrpc_StreamService_ClientStreamCallStart_Native(uint64_t* outHandle)
 extern int Ygrpc_StreamService_ClientStreamCallSend_Native(uint64_t streamHandle, char* req_data, int req_data_len, int32_t req_sequence);
 extern int Ygrpc_StreamService_ClientStreamCallSend_Native_TakeReq(uint64_t streamHandle, char* req_data, int req_data_len, FreeFunc req_data_free, int32_t req_sequence);
 extern int Ygrpc_StreamService_ClientStreamCallFinish_Native(uint64_t streamHandle, char** resp_result, int* resp_result_len, FreeFunc* resp_result_free, int32_t* resp_sequence);
-extern int Ygrpc_StreamService_ServerStreamCall(void* reqPtr, int reqLen, void* onReadBytes, void* onDone, void* userData);
-extern int Ygrpc_StreamService_ServerStreamCall_TakeReq(void* reqPtr, int reqLen, FreeFunc reqFree, void* onReadBytes, void* onDone, void* userData);
-extern int Ygrpc_StreamService_ServerStreamCall_Native(char* req_data, int req_data_len, int32_t req_sequence, void* onReadNative, void* onDone, void* userData);
-extern int Ygrpc_StreamService_ServerStreamCall_Native_TakeReq(char* req_data, int req_data_len, FreeFunc req_data_free, int32_t req_sequence, void* onReadNative, void* onDone, void* userData);
-extern int Ygrpc_StreamService_BidiStreamCallStart(void* onReadBytes, void* onDone, void* userData, uint64_t* outHandle);
+extern int Ygrpc_StreamService_ServerStreamCall(void *reqPtr, int reqLen, void *onReadBytes, void *onDone, uint64_t callID);
+extern int Ygrpc_StreamService_ServerStreamCall_TakeReq(void *reqPtr, int reqLen, FreeFunc reqFree, void *onReadBytes, void *onDone, uint64_t callID);
+extern int Ygrpc_StreamService_ServerStreamCall_Native(char *req_data, int req_data_len, int32_t req_sequence, void *onReadNative, void *onDone, uint64_t callID);
+extern int Ygrpc_StreamService_ServerStreamCall_Native_TakeReq(char *req_data, int req_data_len, FreeFunc req_data_free, int32_t req_sequence, void *onReadNative, void *onDone, uint64_t callID);
+extern int Ygrpc_StreamService_BidiStreamCallStart(void *onReadBytes, void *onDone, uint64_t *outHandle);
 extern int Ygrpc_StreamService_BidiStreamCallSend(uint64_t streamHandle, void* reqPtr, int reqLen);
 extern int Ygrpc_StreamService_BidiStreamCallSend_TakeReq(uint64_t streamHandle, void* reqPtr, int reqLen, FreeFunc reqFree);
 extern int Ygrpc_StreamService_BidiStreamCallCloseSend(uint64_t streamHandle);
-extern int Ygrpc_StreamService_BidiStreamCallStart_Native(void* onReadNative, void* onDone, void* userData, uint64_t* outHandle);
+extern int Ygrpc_StreamService_BidiStreamCallStart_Native(void *onReadNative, void *onDone, uint64_t *outHandle);
 extern int Ygrpc_StreamService_BidiStreamCallSend_Native(uint64_t streamHandle, char* req_data, int req_data_len, int32_t req_sequence);
 extern int Ygrpc_StreamService_BidiStreamCallSend_Native_TakeReq(uint64_t streamHandle, char* req_data, int req_data_len, FreeFunc req_data_free, int32_t req_sequence);
 extern int Ygrpc_StreamService_BidiStreamCallCloseSend_Native(uint64_t streamHandle);

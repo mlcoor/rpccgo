@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,8 +15,32 @@ typedef struct {
     char results[16][64];
 } stream_state;
 
-static void on_read_bytes(void* resp_ptr, int resp_len, FreeFunc resp_free, void* user_data) {
-    stream_state* st = (stream_state*)user_data;
+static stream_state *g_state = NULL;
+static uint64_t g_call_id = 0;
+
+static stream_state *get_state(uint64_t call_id)
+{
+    if (!g_state)
+    {
+        fprintf(stderr, "callback before state init\n");
+        abort();
+    }
+    if (g_call_id == 0)
+    {
+        g_call_id = call_id;
+    }
+    else if (g_call_id != call_id)
+    {
+        fprintf(stderr, "unexpected call_id: got=%llu want=%llu\n",
+                (unsigned long long)call_id, (unsigned long long)g_call_id);
+        abort();
+    }
+    return g_state;
+}
+
+static void on_read_bytes(uint64_t call_id, void *resp_ptr, int resp_len, FreeFunc resp_free)
+{
+    stream_state *st = get_state(call_id);
 
     const uint8_t* s_ptr = NULL;
     int s_len = 0;
@@ -32,15 +57,17 @@ static void on_read_bytes(void* resp_ptr, int resp_len, FreeFunc resp_free, void
     if (resp_free) resp_free(resp_ptr);
 }
 
-static void on_done(int error_id, void* user_data) {
-    stream_state* st = (stream_state*)user_data;
+static void on_done(uint64_t call_id, int error_id)
+{
+    stream_state *st = get_state(call_id);
     st->done = 1;
     st->done_error_id = error_id;
 }
 
-static void on_read_native(void* result_ptr, int result_len, FreeFunc result_free, int32_t sequence, void* user_data) {
+static void on_read_native(uint64_t call_id, void *result_ptr, int result_len, FreeFunc result_free, int32_t sequence)
+{
     (void)sequence;
-    stream_state* st = (stream_state*)user_data;
+    stream_state *st = get_state(call_id);
     int n = result_len;
     if (n > (int)sizeof(st->results[0]) - 1) n = (int)sizeof(st->results[0]) - 1;
     memcpy(st->results[st->count], result_ptr, (size_t)n);
@@ -60,19 +87,29 @@ static void wait_done(stream_state* st) {
 }
 
 int main(void) {
-    setenv("YGRPC_PROTOCOL", "", 1);
+    int rc = Ygrpc_SetProtocol(YGRPC_PROTOCOL_UNSET);
+    if (rc != 0)
+    {
+        fprintf(stderr, "Ygrpc_SetProtocol failed: %d\n", rc);
+        return 1;
+    }
 
     // Binary bidi-streaming
     {
         stream_state st;
         memset(&st, 0, sizeof(st));
 
+        g_state = &st;
+        g_call_id = 0;
+
         uint64_t handle = 0;
-        int err_id = Ygrpc_StreamService_BidiStreamCallStart((void*)on_read_bytes, (void*)on_done, &st, &handle);
+        int err_id = Ygrpc_StreamService_BidiStreamCallStart((void *)on_read_bytes, (void *)on_done, &handle);
         if (err_id != 0 || handle == 0) {
             fprintf(stderr, "BidiStart failed: err=%d handle=%llu\n", err_id, (unsigned long long)handle);
             return 1;
         }
+        if (g_call_id == 0)
+            g_call_id = handle;
 
         const char* msgs[] = {"X", "Y", "Z"};
         for (int i = 0; i < 3; i++) {
@@ -113,12 +150,17 @@ int main(void) {
         stream_state st;
         memset(&st, 0, sizeof(st));
 
+        g_state = &st;
+        g_call_id = 0;
+
         uint64_t handle = 0;
-        int err_id = Ygrpc_StreamService_BidiStreamCallStart_Native((void*)on_read_native, (void*)on_done, &st, &handle);
+        int err_id = Ygrpc_StreamService_BidiStreamCallStart_Native((void *)on_read_native, (void *)on_done, &handle);
         if (err_id != 0 || handle == 0) {
             fprintf(stderr, "BidiStart_Native failed: err=%d handle=%llu\n", err_id, (unsigned long long)handle);
             return 1;
         }
+        if (g_call_id == 0)
+            g_call_id = handle;
 
         const char* msgs[] = {"X", "Y", "Z"};
         for (int i = 0; i < 3; i++) {

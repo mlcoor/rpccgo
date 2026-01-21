@@ -1,16 +1,11 @@
 package rpcruntime
 
 import (
-	"os"
 	"testing"
 )
 
 func TestBackgroundContext_DefaultDoesNotSetProtocol(t *testing.T) {
-	old := os.Getenv("YGRPC_PROTOCOL")
-	t.Cleanup(func() {
-		_ = os.Setenv("YGRPC_PROTOCOL", old)
-	})
-	_ = os.Unsetenv("YGRPC_PROTOCOL")
+	ClearDefaultProtocol()
 
 	ctx := BackgroundContext()
 	got, ok := ProtocolFromContext(ctx)
@@ -19,13 +14,12 @@ func TestBackgroundContext_DefaultDoesNotSetProtocol(t *testing.T) {
 	}
 }
 
-func TestBackgroundContext_RespectsEnv(t *testing.T) {
-	old := os.Getenv("YGRPC_PROTOCOL")
-	t.Cleanup(func() {
-		_ = os.Setenv("YGRPC_PROTOCOL", old)
-	})
+func TestBackgroundContext_UsesDefaultProtocol(t *testing.T) {
+	if err := SetDefaultProtocol(ProtocolGrpc); err != nil {
+		t.Fatalf("SetDefaultProtocol: %v", err)
+	}
+	t.Cleanup(ClearDefaultProtocol)
 
-	_ = os.Setenv("YGRPC_PROTOCOL", string(ProtocolGrpc))
 	ctx := BackgroundContext()
 	got, ok := ProtocolFromContext(ctx)
 	if !ok {

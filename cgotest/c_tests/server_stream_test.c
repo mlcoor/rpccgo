@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +14,9 @@ typedef struct {
     char results[8][64];
 } stream_state;
 
-static void on_read_bytes(void* resp_ptr, int resp_len, FreeFunc resp_free, void* user_data) {
-    stream_state* st = (stream_state*)user_data;
+static void on_read_bytes(uint64_t call_id, void *resp_ptr, int resp_len, FreeFunc resp_free)
+{
+    stream_state *st = (stream_state *)(uintptr_t)call_id;
 
     const uint8_t* s_ptr = NULL;
     int s_len = 0;
@@ -31,15 +33,17 @@ static void on_read_bytes(void* resp_ptr, int resp_len, FreeFunc resp_free, void
     if (resp_free) resp_free(resp_ptr);
 }
 
-static void on_done(int error_id, void* user_data) {
-    stream_state* st = (stream_state*)user_data;
+static void on_done(uint64_t call_id, int error_id)
+{
+    stream_state *st = (stream_state *)(uintptr_t)call_id;
     st->done = 1;
     st->done_error_id = error_id;
 }
 
-static void on_read_native(void* result_ptr, int result_len, FreeFunc result_free, int32_t sequence, void* user_data) {
+static void on_read_native(uint64_t call_id, void *result_ptr, int result_len, FreeFunc result_free, int32_t sequence)
+{
     (void)sequence;
-    stream_state* st = (stream_state*)user_data;
+    stream_state *st = (stream_state *)(uintptr_t)call_id;
     int n = result_len;
     if (n > (int)sizeof(st->results[0]) - 1) n = (int)sizeof(st->results[0]) - 1;
     memcpy(st->results[st->count], result_ptr, (size_t)n);
@@ -49,7 +53,12 @@ static void on_read_native(void* result_ptr, int result_len, FreeFunc result_fre
 }
 
 int main(void) {
-    setenv("YGRPC_PROTOCOL", "", 1);
+    int rc = Ygrpc_SetProtocol(YGRPC_PROTOCOL_UNSET);
+    if (rc != 0)
+    {
+        fprintf(stderr, "Ygrpc_SetProtocol failed: %d\n", rc);
+        return 1;
+    }
 
     // Binary server-streaming
     {
@@ -60,7 +69,8 @@ int main(void) {
         int req_len = 0;
         assert(ygrpc_encode_stream_request("test", 4, 7, &req, &req_len) == 0);
 
-        int err_id = Ygrpc_StreamService_ServerStreamCall(req, req_len, (void*)on_read_bytes, (void*)on_done, &st);
+        uint64_t call_id = (uint64_t)(uintptr_t)&st;
+        int err_id = Ygrpc_StreamService_ServerStreamCall(req, req_len, (void *)on_read_bytes, (void *)on_done, call_id);
         free(req);
 
         if (err_id != 0) {
@@ -87,10 +97,10 @@ int main(void) {
         memset(&st, 0, sizeof(st));
 
         int err_id = Ygrpc_StreamService_ServerStreamCall_Native(
-            (char*)"test", 4, (int32_t)7,
-            (void*)on_read_native,
-            (void*)on_done,
-            &st);
+            (char *)"test", 4, (int32_t)7,
+            (void *)on_read_native,
+            (void *)on_done,
+            (uint64_t)(uintptr_t)&st);
 
         if (err_id != 0) {
             fprintf(stderr, "ServerStreamCall_Native failed: %d\n", err_id);

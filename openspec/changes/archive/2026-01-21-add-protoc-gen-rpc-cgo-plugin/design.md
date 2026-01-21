@@ -103,7 +103,7 @@ Binary 变体以 protobuf wire-format bytes 作为跨 C ABI 的请求/响应载�
 - Native/Binary 不混用：Start_Native 对应 Send_Native/Finish_Native。
 
 Callbacks 约定：
-- 导出函数应接收 `void* user_data` 并在调用 onRead/onDone 时原样透传。
+- 导出函数不再接收隐式透传指针；所有回调首参为 `uint64_t call_id`，并在每次回调时显式传入。
 - Binary callbacks 的 onRead 收到的是 protobuf bytes buffer + free。
 - Native callbacks 的 onRead 按 response message 的字段（按 field number 升序）逐个展开参数：数值/bool 直接传值，string/bytes 以 `(ptr,len,free)` 三元组表示。
 

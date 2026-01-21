@@ -48,7 +48,12 @@ static void test_error_path(void) {
 }
 
 int main(void) {
-        setenv("YGRPC_PROTOCOL", "", 1);
+    int rc = Ygrpc_SetProtocol(YGRPC_PROTOCOL_UNSET);
+    if (rc != 0)
+    {
+        fprintf(stderr, "Ygrpc_SetProtocol failed: %d\n", rc);
+        return 1;
+    }
 
     // Binary unary
     {

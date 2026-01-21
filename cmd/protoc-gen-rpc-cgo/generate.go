@@ -31,8 +31,15 @@ func generateCgoCommonHeader(gen *protogen.Plugin) *protogen.GeneratedFile {
 	h.P()
 	h.P("typedef void (*FreeFunc)(void*);")
 	h.P()
+	h.P("typedef enum {")
+	h.P("    YGRPC_PROTOCOL_UNSET = 0,")
+	h.P("    YGRPC_PROTOCOL_GRPC = 1,")
+	h.P("    YGRPC_PROTOCOL_CONNECTRPC = 2,")
+	h.P("} YgrpcProtocol;")
+	h.P()
 
 	h.P("extern void Ygrpc_Free(void* ptr);")
+	h.P("extern int Ygrpc_SetProtocol(int protocol);")
 	h.P("extern int Ygrpc_GetErrorMsg(int error_id, void** msg_ptr, int* msg_len, FreeFunc* msg_free);")
 	h.P()
 
@@ -41,17 +48,17 @@ func generateCgoCommonHeader(gen *protogen.Plugin) *protogen.GeneratedFile {
 	h.P("    if (fn) fn(ptr);")
 	h.P("}")
 	h.P()
-	h.P("typedef void (*OnReadBytesFunc)(void* resp_ptr, int resp_len, FreeFunc resp_free, void* user_data);")
-	h.P("typedef void (*OnDoneFunc)(int error_id, void* user_data);")
+	h.P("typedef void (*OnReadBytesFunc)(uint64_t call_id, void* resp_ptr, int resp_len, FreeFunc resp_free);")
+	h.P("typedef void (*OnDoneFunc)(uint64_t call_id, int error_id);")
 	h.P()
 	h.P(
-		"static inline void call_on_read_bytes(void* fn, void* resp_ptr, int resp_len, FreeFunc resp_free, void* user_data) {",
+		"static inline void call_on_read_bytes(void* fn, uint64_t call_id, void* resp_ptr, int resp_len, FreeFunc resp_free) {",
 	)
-	h.P("    if(fn) ((OnReadBytesFunc)fn)(resp_ptr, resp_len, resp_free, user_data);")
+	h.P("    if(fn) ((OnReadBytesFunc)fn)(call_id, resp_ptr, resp_len, resp_free);")
 	h.P("}")
 	h.P()
-	h.P("static inline void call_on_done(void* fn, int error_id, void* user_data) {")
-	h.P("    if(fn) ((OnDoneFunc)fn)(error_id, user_data);")
+	h.P("static inline void call_on_done(void* fn, uint64_t call_id, int error_id) {")
+	h.P("    if(fn) ((OnDoneFunc)fn)(call_id, error_id);")
 	h.P("}")
 	h.P()
 	h.P("#endif")
@@ -82,6 +89,28 @@ func generateMainFile(gen *protogen.Plugin) *protogen.GeneratedFile {
 	g.P("//export Ygrpc_Free")
 	g.P("func Ygrpc_Free(ptr unsafe.Pointer) {")
 	g.P("    C.free(ptr)")
+	g.P("}")
+	g.P()
+
+	g.P("//export Ygrpc_SetProtocol")
+	g.P("func Ygrpc_SetProtocol(protocol C.int) C.int {")
+	g.P("    switch int(protocol) {")
+	g.P("    case 0:")
+	g.P("        rpcruntime.ClearDefaultProtocol()")
+	g.P("        return 0")
+	g.P("    case 1:")
+	g.P("        if err := rpcruntime.SetDefaultProtocol(rpcruntime.ProtocolGrpc); err != nil {")
+	g.P("            return C.int(rpcruntime.StoreError(err))")
+	g.P("        }")
+	g.P("        return 0")
+	g.P("    case 2:")
+	g.P("        if err := rpcruntime.SetDefaultProtocol(rpcruntime.ProtocolConnectRPC); err != nil {")
+	g.P("            return C.int(rpcruntime.StoreError(err))")
+	g.P("        }")
+	g.P("        return 0")
+	g.P("    default:")
+	g.P("        return C.int(rpcruntime.StoreError(rpcruntime.ErrUnknownProtocol))")
+	g.P("    }")
 	g.P("}")
 	g.P()
 
@@ -200,34 +229,26 @@ func emitNativeOnReadWrapper(g *protogen.GeneratedFile, serviceName, methodName 
 	}
 
 	g.P("typedef void (*", typedefName, ")(")
-	if len(args) == 0 {
-		g.P("    void* user_data")
-	} else {
-		for _, a := range args {
-			g.P("    ", a, ",")
-		}
-		g.P("    void* user_data")
+	g.P("    uint64_t call_id")
+	for _, a := range args {
+		g.P("    , ", a)
 	}
 	g.P(");")
-	g.P("static inline void ", wrapper, "(void* fn, void* user_data")
+	g.P("static inline void ", wrapper, "(void* fn, uint64_t call_id")
 	for _, a := range args {
 		g.P("    , ", a)
 	}
 	g.P(") {")
 	g.P("    ((", typedefName, ")fn)(")
-	if len(args) == 0 {
-		g.P("        user_data")
-	} else {
-		for _, field := range fields {
-			name := strings.ToLower(string(field.Desc.Name()))
-			switch field.Desc.Kind() {
-			case protoreflect.StringKind, protoreflect.BytesKind:
-				g.P("        ", name, "_ptr, ", name, "_len, ", name, "_free,")
-			default:
-				g.P("        ", name, ",")
-			}
+	g.P("        call_id")
+	for _, field := range fields {
+		name := strings.ToLower(string(field.Desc.Name()))
+		switch field.Desc.Kind() {
+		case protoreflect.StringKind, protoreflect.BytesKind:
+			g.P("        , ", name, "_ptr, ", name, "_len, ", name, "_free")
+		default:
+			g.P("        , ", name)
 		}
-		g.P("        user_data")
 	}
 	g.P("    );")
 	g.P("}")
