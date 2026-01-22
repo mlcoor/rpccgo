@@ -166,4 +166,3 @@ The generated adaptor code SHALL define `fullMethod` constants in the form `/Ser
 - **GIVEN** a service `S` and method `M`
 - **WHEN** adaptor code is generated
 - **THEN** it SHALL define a constant equal to `/S/M`
-
