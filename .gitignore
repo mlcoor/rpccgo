@@ -33,3 +33,5 @@ cgotest/c_tests/client_stream_test
 cgotest/c_tests/server_stream_test
 cgotest/c_tests/unary_test
 cgotest/c_tests/unary_test_mismatch
+
+.serena
