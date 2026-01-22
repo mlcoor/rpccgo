@@ -27,4 +27,7 @@ var (
 
 	// ErrInvalidStreamHandle is returned when stream handle is invalid or already finished.
 	ErrInvalidStreamHandle = errors.New("rpcruntime: invalid or finished stream handle")
+
+	// ErrStreamMessageTypeMismatch is returned when stream message types do not match.
+	ErrStreamMessageTypeMismatch = errors.New("rpcruntime: stream message type mismatch")
 )

@@ -36,14 +36,18 @@ func (c *ConnectStreamConn) Receive(msg any) error {
 	case req := <-c.session.SendCh():
 		// Copy the received message to msg.
 		// This assumes msg is a pointer to the correct type.
-		copyMessage(req, msg)
+		if err := copyMessage(req, msg); err != nil {
+			return connect.NewError(connect.CodeInternal, err)
+		}
 		return nil
 	case <-c.session.SendDoneCh():
 		select {
 		case req := <-c.session.SendCh():
 			// Copy the received message to msg.
 			// This assumes msg is a pointer to the correct type.
-			copyMessage(req, msg)
+			if err := copyMessage(req, msg); err != nil {
+				return connect.NewError(connect.CodeInternal, err)
+			}
 			return nil
 		default:
 			return io.EOF
@@ -80,17 +84,21 @@ func (c *ConnectStreamConn) ResponseTrailer() http.Header {
 
 // copyMessage copies src to dst using proto.Merge.
 // Both src and dst should be pointers to the same proto message type.
-func copyMessage(src, dst any) {
+func copyMessage(src, dst any) error {
 	srcMsg, ok := src.(proto.Message)
 	if !ok {
-		return
+		return ErrStreamMessageTypeMismatch
 	}
 	dstMsg, ok := dst.(proto.Message)
 	if !ok {
-		return
+		return ErrStreamMessageTypeMismatch
+	}
+	if srcMsg.ProtoReflect().Descriptor().FullName() != dstMsg.ProtoReflect().Descriptor().FullName() {
+		return ErrStreamMessageTypeMismatch
 	}
 	proto.Reset(dstMsg)
 	proto.Merge(dstMsg, srcMsg)
+	return nil
 }
 
 // clientStreamFields mirrors the internal layout of connect.ClientStream[T].
