@@ -118,6 +118,49 @@ func TestSetStreamConn(t *testing.T) {
 	})
 }
 
+func TestTrySetStreamConn(t *testing.T) {
+	session := &streamSession{}
+	conn := NewConnectStreamConn(session)
+
+	t.Run("NilReturnsError", func(t *testing.T) {
+		if err := TrySetClientStreamConn[any](nil, conn); err == nil {
+			t.Fatal("expected error for nil client stream, got nil")
+		}
+		if err := TrySetServerStreamConn[any](nil, conn); err == nil {
+			t.Fatal("expected error for nil server stream, got nil")
+		}
+		if err := TrySetBidiStreamConn[any, any](nil, conn); err == nil {
+			t.Fatal("expected error for nil bidi stream, got nil")
+		}
+	})
+
+	t.Run("SetsConnSuccessfully", func(t *testing.T) {
+		client := &connect.ClientStream[any]{}
+		if err := TrySetClientStreamConn(client, conn); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if getConnField(client) != conn {
+			t.Fatal("TrySetClientStreamConn did not set conn correctly")
+		}
+
+		server := &connect.ServerStream[any]{}
+		if err := TrySetServerStreamConn(server, conn); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if getConnField(server) != conn {
+			t.Fatal("TrySetServerStreamConn did not set conn correctly")
+		}
+
+		bidi := &connect.BidiStream[any, any]{}
+		if err := TrySetBidiStreamConn(bidi, conn); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if getConnField(bidi) != conn {
+			t.Fatal("TrySetBidiStreamConn did not set conn correctly")
+		}
+	})
+}
+
 func TestNewStreamsSetConn(t *testing.T) {
 	session := &streamSession{}
 	conn := NewConnectStreamConn(session)

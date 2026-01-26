@@ -111,7 +111,7 @@ func (c *ConnectStreamConn) Receive(msg any) error {
 
 // RequestHeader returns the headers received from the client.
 func (c *ConnectStreamConn) RequestHeader() http.Header {
-	return nil
+	return http.Header{}
 }
 
 // Send sends a message to the client via the onRead callback.
@@ -203,6 +203,57 @@ func SetBidiStreamConn[Req, Res any](stream *connect.BidiStream[Req, Res], conn 
 	}
 	mustCheckConnectStreamLayout()
 	setConnField(stream, conn, "SetBidiStreamConn")
+}
+
+// TrySetClientStreamConn sets the conn field of a connect.ClientStream.
+//
+// Unlike SetClientStreamConn, this function never panics. It returns an error
+// when the stream is nil or if the underlying reflection-based injection fails.
+func TrySetClientStreamConn[Req any](stream *connect.ClientStream[Req], conn connect.StreamingHandlerConn) (err error) {
+	if stream == nil {
+		return fmt.Errorf("rpcruntime: TrySetClientStreamConn: nil stream")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("rpcruntime: TrySetClientStreamConn: %w", RecoverPanic(r))
+		}
+	}()
+	SetClientStreamConn(stream, conn)
+	return nil
+}
+
+// TrySetServerStreamConn sets the conn field of a connect.ServerStream.
+//
+// Unlike SetServerStreamConn, this function never panics. It returns an error
+// when the stream is nil or if the underlying reflection-based injection fails.
+func TrySetServerStreamConn[Res any](stream *connect.ServerStream[Res], conn connect.StreamingHandlerConn) (err error) {
+	if stream == nil {
+		return fmt.Errorf("rpcruntime: TrySetServerStreamConn: nil stream")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("rpcruntime: TrySetServerStreamConn: %w", RecoverPanic(r))
+		}
+	}()
+	SetServerStreamConn(stream, conn)
+	return nil
+}
+
+// TrySetBidiStreamConn sets the conn field of a connect.BidiStream.
+//
+// Unlike SetBidiStreamConn, this function never panics. It returns an error
+// when the stream is nil or if the underlying reflection-based injection fails.
+func TrySetBidiStreamConn[Req, Res any](stream *connect.BidiStream[Req, Res], conn connect.StreamingHandlerConn) (err error) {
+	if stream == nil {
+		return fmt.Errorf("rpcruntime: TrySetBidiStreamConn: nil stream")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("rpcruntime: TrySetBidiStreamConn: %w", RecoverPanic(r))
+		}
+	}()
+	SetBidiStreamConn(stream, conn)
+	return nil
 }
 
 // NewClientStream creates a new connect.ClientStream with the given conn.
