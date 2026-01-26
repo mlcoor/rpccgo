@@ -177,7 +177,6 @@ go build -buildmode=c-shared -o ./libygrpc.so ./cgo_export
 | 选项 | 取值 | 描述 |
 |--------|--------|-------------|
 | `protocol` | `grpc`, `connectrpc`, `grpc\|connectrpc` | 要支持的协议。使用 `\|` 分隔符指定多个协议 (回退顺序)。默认值：`connectrpc` |
-| `connect_package_suffix` | 例如 `connect` | connect-go 生成包的后缀。设置后，处理器接口将从 `<import-path>/<go-package-name><suffix>` 导入 |
 | `paths` | `source_relative`, `import` | 输出路径模式 |
 
 > **注意**：Connect 框架仅支持 **Simple API 模式** (使用 `protoc-gen-connect-go` 且开启 `simple=true` 选项)。
@@ -234,7 +233,7 @@ option (ygrpc.cgo.default_native_mode) = NATIVE_ENABLE;
 service TestService {
   // 使用文件级默认选项
   rpc Ping(PingRequest) returns (PingResponse);
-  
+
   // 方法级覆盖：禁用 Native
   rpc ComplexCall(ComplexRequest) returns (ComplexResponse) {
     option (ygrpc.cgo.native_mode) = NATIVE_DISABLE;
@@ -770,7 +769,3 @@ rpccgo/
 ```
 
 ---
-
-## 许可证 (License)
-
-MIT License
