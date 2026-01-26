@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/token"
 	"os"
 	"strings"
 
@@ -27,8 +26,7 @@ const (
 
 // GeneratorOptions holds all options for code generation.
 type GeneratorOptions struct {
-	Protocols            []ProtocolOption
-	ConnectPackageSuffix string
+	Protocols []ProtocolOption
 }
 
 func main() {
@@ -39,12 +37,6 @@ func main() {
 
 	var flags flag.FlagSet
 
-	connectPackageSuffixFlag := flags.String(
-		"connect_package_suffix",
-		"",
-		"connect-go package_suffix; when set, connect handler interface is assumed to be in <import-path>/<go-package-name><suffix>",
-	)
-
 	protocolFlag := flags.String(
 		"protocol",
 		"",
@@ -54,17 +46,12 @@ func main() {
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
-		suffix, err := parseConnectPackageSuffix(*connectPackageSuffixFlag)
-		if err != nil {
-			return err
-		}
 		protocols, err := parseProtocolToken(*protocolFlag)
 		if err != nil {
 			return err
 		}
 		genOpts := GeneratorOptions{
-			Protocols:            protocols,
-			ConnectPackageSuffix: suffix,
+			Protocols: protocols,
 		}
 
 		for _, f := range gen.Files {
@@ -126,17 +113,6 @@ func parseProtocolToken(raw string) ([]ProtocolOption, error) {
 		return []ProtocolOption{ProtocolOptionConnectRPC}, nil
 	}
 	return out, nil
-}
-
-func parseConnectPackageSuffix(s string) (string, error) {
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" {
-		return "", nil
-	}
-	if token.IsIdentifier(trimmed) {
-		return trimmed, nil
-	}
-	return "", fmt.Errorf("invalid connect_package_suffix %q (must be a Go identifier)", trimmed)
 }
 
 func supportsProtocol(protocols []ProtocolOption, p ProtocolOption) bool {

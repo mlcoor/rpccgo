@@ -143,7 +143,7 @@ extern "C" {
 
 extern void Ygrpc_Free(void* ptr);
 extern int Ygrpc_SetProtocol(int protocol);
-extern int Ygrpc_GetErrorMsg(int errorID, void** msgPtr, int* msgLen, FreeFunc* msgFree);
+extern int Ygrpc_GetErrorMsg(uint64_t errorID, void** msgPtr, int* msgLen, FreeFunc* msgFree);
 extern int Ygrpc_StreamService_UnaryCall(void* reqPtr, int reqLen, void** respPtr, int* respLen, FreeFunc* respFree);
 extern int Ygrpc_StreamService_UnaryCall_TakeReq(void* reqPtr, int reqLen, FreeFunc reqFree, void** respPtr, int* respLen, FreeFunc* respFree);
 extern int Ygrpc_StreamService_UnaryCall_Native(char* req_data, int req_data_len, int32_t req_sequence, char** resp_result, int* resp_result_len, FreeFunc* resp_result_free, int32_t* resp_sequence);

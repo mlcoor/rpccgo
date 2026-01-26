@@ -8,7 +8,7 @@ import (
 
 func resetForTest() {
 	registryMu.Lock()
-	registry = make(map[int64]errorRecord)
+	registry = make(map[uint64]errorRecord)
 	registryMu.Unlock()
 	nextErrorID.Store(0)
 	startCleanerOnce = sync.Once{}
@@ -70,7 +70,7 @@ func TestConcurrencySafety(t *testing.T) {
 	storeCount := 200
 	wg.Add(storeCount)
 
-	ids := make([]int64, storeCount)
+	ids := make([]uint64, storeCount)
 	for i := 0; i < storeCount; i++ {
 		i := i
 		go func() {

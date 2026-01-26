@@ -24,5 +24,5 @@ protoc -Iproto -I../proto \
   --go-grpc_out=./mix --go-grpc_opt=paths=source_relative,${GO_PKG_mix} \
   --connect-go_out=./mix --connect-go_opt=paths=source_relative,simple=true,${GO_PKG_mix} \
   --rpc-cgo-adaptor_out=./mix \
-  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=${ADAPTOR_PROTOCOL},connect_package_suffix=connect,${GO_PKG_mix} \
+  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=${ADAPTOR_PROTOCOL},${GO_PKG_mix} \
   ./proto/unary.proto ./proto/stream.proto

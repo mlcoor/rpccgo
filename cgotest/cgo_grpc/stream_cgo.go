@@ -368,7 +368,7 @@ func Ygrpc_StreamService_ServerStreamCall(
 		return C.int(rpcruntime.StoreError(err))
 	}
 	ctx := rpcruntime.BackgroundContext()
-	var doneErrId atomic.Int64
+	var doneErrId atomic.Uint64
 	onRead := func(resp *grpc.StreamResponse) bool {
 		respBytes, err := proto.Marshal(resp)
 		if err != nil {
@@ -384,7 +384,7 @@ func Ygrpc_StreamService_ServerStreamCall(
 		} else {
 			doneErrId.Store(0)
 		}
-		C.call_on_done(onDone, callID, C.int(doneErrId.Load()))
+		C.call_on_done(onDone, callID, C.uint64_t(doneErrId.Load()))
 	}
 	err := grpc.StreamService_ServerStreamCall(ctx, req, onRead, onDoneFunc)
 	if err != nil {
@@ -414,7 +414,7 @@ func Ygrpc_StreamService_ServerStreamCall_TakeReq(
 		return C.int(rpcruntime.StoreError(err))
 	}
 	ctx := rpcruntime.BackgroundContext()
-	var doneErrId atomic.Int64
+	var doneErrId atomic.Uint64
 	onRead := func(resp *grpc.StreamResponse) bool {
 		respBytes, err := proto.Marshal(resp)
 		if err != nil {
@@ -430,7 +430,7 @@ func Ygrpc_StreamService_ServerStreamCall_TakeReq(
 		} else {
 			doneErrId.Store(0)
 		}
-		C.call_on_done(onDone, callID, C.int(doneErrId.Load()))
+		C.call_on_done(onDone, callID, C.uint64_t(doneErrId.Load()))
 	}
 	err := grpc.StreamService_ServerStreamCall(ctx, req, onRead, onDoneFunc)
 	if err != nil {
@@ -455,7 +455,7 @@ func Ygrpc_StreamService_ServerStreamCall_Native(
 	req.Data = C.GoStringN(req_data, req_data_len)
 	req.Sequence = int32(req_sequence)
 	ctx := rpcruntime.BackgroundContext()
-	var doneErrId atomic.Int64
+	var doneErrId atomic.Uint64
 	onRead := func(resp *grpc.StreamResponse) bool {
 
 		var result_ptr unsafe.Pointer
@@ -479,7 +479,7 @@ func Ygrpc_StreamService_ServerStreamCall_Native(
 		} else {
 			doneErrId.Store(0)
 		}
-		C.call_on_done(onDone, callID, C.int(doneErrId.Load()))
+		C.call_on_done(onDone, callID, C.uint64_t(doneErrId.Load()))
 	}
 	err := grpc.StreamService_ServerStreamCall(ctx, req, onRead, onDoneFunc)
 	if err != nil {
@@ -508,7 +508,7 @@ func Ygrpc_StreamService_ServerStreamCall_Native_TakeReq(
 	}
 	req.Sequence = int32(req_sequence)
 	ctx := rpcruntime.BackgroundContext()
-	var doneErrId atomic.Int64
+	var doneErrId atomic.Uint64
 	onRead := func(resp *grpc.StreamResponse) bool {
 		var result_ptr unsafe.Pointer
 		var result_len C.int
@@ -531,7 +531,7 @@ func Ygrpc_StreamService_ServerStreamCall_Native_TakeReq(
 		} else {
 			doneErrId.Store(0)
 		}
-		C.call_on_done(onDone, callID, C.int(doneErrId.Load()))
+		C.call_on_done(onDone, callID, C.uint64_t(doneErrId.Load()))
 	}
 	err := grpc.StreamService_ServerStreamCall(ctx, req, onRead, onDoneFunc)
 	if err != nil {
@@ -564,11 +564,11 @@ func Ygrpc_StreamService_BidiStreamCallStart(
 	}
 	onDoneFunc := func(err error) {
 		<-handleReady
-		errId := int64(0)
+		errId := uint64(0)
 		if err != nil {
 			errId = rpcruntime.StoreError(err)
 		}
-		C.call_on_done(onDone, C.uint64_t(streamHandle), C.int(errId))
+		C.call_on_done(onDone, C.uint64_t(streamHandle), C.uint64_t(errId))
 	}
 	handle, err := grpc.StreamService_BidiStreamCallStart(ctx, onRead, onDoneFunc)
 	if err != nil {
@@ -655,11 +655,11 @@ func Ygrpc_StreamService_BidiStreamCallStart_Native(
 	}
 	onDoneFunc := func(err error) {
 		<-handleReady
-		errId := int64(0)
+		errId := uint64(0)
 		if err != nil {
 			errId = rpcruntime.StoreError(err)
 		}
-		C.call_on_done(onDone, C.uint64_t(streamHandle), C.int(errId))
+		C.call_on_done(onDone, C.uint64_t(streamHandle), C.uint64_t(errId))
 	}
 	handle, err := grpc.StreamService_BidiStreamCallStart(ctx, onRead, onDoneFunc)
 	if err != nil {

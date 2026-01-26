@@ -13,9 +13,6 @@ var (
 
 // Sentinel errors for adaptor dispatch.
 var (
-	// ErrMissingProtocol is returned when protocol is not set in context.
-	ErrMissingProtocol = errors.New("rpcruntime: protocol not set in context")
-
 	// ErrUnknownProtocol is returned when protocol is not grpc or connectrpc.
 	ErrUnknownProtocol = errors.New("rpcruntime: unknown protocol")
 

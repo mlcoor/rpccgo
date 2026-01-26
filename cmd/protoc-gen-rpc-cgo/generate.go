@@ -40,7 +40,7 @@ func generateCgoCommonHeader(gen *protogen.Plugin) *protogen.GeneratedFile {
 
 	h.P("extern void Ygrpc_Free(void* ptr);")
 	h.P("extern int Ygrpc_SetProtocol(int protocol);")
-	h.P("extern int Ygrpc_GetErrorMsg(int error_id, void** msg_ptr, int* msg_len, FreeFunc* msg_free);")
+	h.P("extern int Ygrpc_GetErrorMsg(uint64_t error_id, void** msg_ptr, int* msg_len, FreeFunc* msg_free);")
 	h.P()
 
 	h.P("static inline void call_free_func(FreeFunc fn, void* ptr) {")
@@ -49,7 +49,7 @@ func generateCgoCommonHeader(gen *protogen.Plugin) *protogen.GeneratedFile {
 	h.P("}")
 	h.P()
 	h.P("typedef void (*OnReadBytesFunc)(uint64_t call_id, void* resp_ptr, int resp_len, FreeFunc resp_free);")
-	h.P("typedef void (*OnDoneFunc)(uint64_t call_id, int error_id);")
+	h.P("typedef void (*OnDoneFunc)(uint64_t call_id, uint64_t error_id);")
 	h.P()
 	h.P(
 		"static inline void call_on_read_bytes(void* fn, uint64_t call_id, void* resp_ptr, int resp_len, FreeFunc resp_free) {",
@@ -57,7 +57,7 @@ func generateCgoCommonHeader(gen *protogen.Plugin) *protogen.GeneratedFile {
 	h.P("    if(fn) ((OnReadBytesFunc)fn)(call_id, resp_ptr, resp_len, resp_free);")
 	h.P("}")
 	h.P()
-	h.P("static inline void call_on_done(void* fn, uint64_t call_id, int error_id) {")
+	h.P("static inline void call_on_done(void* fn, uint64_t call_id, uint64_t error_id) {")
 	h.P("    if(fn) ((OnDoneFunc)fn)(call_id, error_id);")
 	h.P("}")
 	h.P()
@@ -115,8 +115,10 @@ func generateMainFile(gen *protogen.Plugin) *protogen.GeneratedFile {
 	g.P()
 
 	g.P("//export Ygrpc_GetErrorMsg")
-	g.P("func Ygrpc_GetErrorMsg(errorID C.int, msgPtr *unsafe.Pointer, msgLen *C.int, msgFree *C.FreeFunc) C.int {")
-	g.P("    msg, ok := rpcruntime.GetErrorMsgBytes(int64(errorID))")
+	g.P(
+		"func Ygrpc_GetErrorMsg(errorID C.uint64_t, msgPtr *unsafe.Pointer, msgLen *C.int, msgFree *C.FreeFunc) C.int {",
+	)
+	g.P("    msg, ok := rpcruntime.GetErrorMsgBytes(uint64(errorID))")
 	g.P("    if !ok {")
 	g.P("        return 1")
 	g.P("    }")

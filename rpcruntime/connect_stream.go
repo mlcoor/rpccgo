@@ -1,13 +1,65 @@
 package rpcruntime
 
 import (
+	"fmt"
 	"io"
 	"net/http"
-	"unsafe"
+	"reflect"
+	"sync"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 )
+
+var (
+	connectStreamingHandlerConnType = reflect.TypeOf((*connect.StreamingHandlerConn)(nil)).Elem()
+
+	checkConnectStreamLayoutOnce sync.Once
+	checkConnectStreamLayoutErr  error
+)
+
+func checkConnFieldLayout(streamStructType reflect.Type, streamTypeName string) error {
+	if streamStructType.Kind() != reflect.Struct {
+		return fmt.Errorf("%s is not a struct (got %s)", streamTypeName, streamStructType.Kind())
+	}
+	field, ok := streamStructType.FieldByName("conn")
+	if !ok {
+		return fmt.Errorf("%s missing field 'conn'", streamTypeName)
+	}
+	if field.Offset != 0 {
+		return fmt.Errorf("%s field 'conn' offset mismatch: expected 0, got %d", streamTypeName, field.Offset)
+	}
+	if field.Type != connectStreamingHandlerConnType {
+		return fmt.Errorf(
+			"%s field 'conn' type mismatch: expected %v, got %v",
+			streamTypeName,
+			connectStreamingHandlerConnType,
+			field.Type,
+		)
+	}
+	return nil
+}
+
+func mustCheckConnectStreamLayout() {
+	checkConnectStreamLayoutOnce.Do(func() {
+		// Use reflect to check that 'conn' field exists and is settable for each stream type.
+		if err := checkConnFieldLayout(reflect.TypeOf(connect.ClientStream[any]{}), "connect.ClientStream[T]"); err != nil {
+			checkConnectStreamLayoutErr = err
+			return
+		}
+		if err := checkConnFieldLayout(reflect.TypeOf(connect.ServerStream[any]{}), "connect.ServerStream[T]"); err != nil {
+			checkConnectStreamLayoutErr = err
+			return
+		}
+		if err := checkConnFieldLayout(reflect.TypeOf(connect.BidiStream[any, any]{}), "connect.BidiStream[Req, Res]"); err != nil {
+			checkConnectStreamLayoutErr = err
+			return
+		}
+	})
+	if checkConnectStreamLayoutErr != nil {
+		panic(checkConnectStreamLayoutErr)
+	}
+}
 
 // ConnectStreamConn implements connect.StreamingHandlerConn for CGO adaptor use.
 // This bridges rpcruntime.StreamSession with Connect's streaming expectations.
@@ -101,43 +153,56 @@ func copyMessage(src, dst any) error {
 	return nil
 }
 
-// clientStreamFields mirrors the internal layout of connect.ClientStream[T].
-// WARNING: This relies on the internal structure of connect.ClientStream and may break
-// if the connect library changes its internal layout.
-type clientStreamFields struct {
-	conn        connect.StreamingHandlerConn
-	initializer any
-	msg         any
-	err         error
+// setConnField uses reflect to set the 'conn' field of a stream struct.
+// The stream must be a pointer to a struct with a 'conn' field.
+func setConnField(streamPtr any, conn connect.StreamingHandlerConn, streamTypeName string) {
+	rv := reflect.ValueOf(streamPtr)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		panic(fmt.Sprintf("rpcruntime: %s: expected non-nil pointer", streamTypeName))
+	}
+	elem := rv.Elem()
+	if elem.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("rpcruntime: %s: expected struct, got %s", streamTypeName, elem.Kind()))
+	}
+	connField := elem.FieldByName("conn")
+	if !connField.IsValid() {
+		panic(fmt.Sprintf("rpcruntime: %s: missing 'conn' field", streamTypeName))
+	}
+	if !connField.CanSet() {
+		// Use reflect.NewAt to get a settable value for unexported field
+		// This works because we're using the pointer to the struct
+		connFieldAddr := reflect.NewAt(connField.Type(), connField.Addr().UnsafePointer())
+		connFieldAddr.Elem().Set(reflect.ValueOf(conn))
+		return
+	}
+	connField.Set(reflect.ValueOf(conn))
 }
 
-// serverStreamFields mirrors the internal layout of connect.ServerStream[T].
-type serverStreamFields struct {
-	conn connect.StreamingHandlerConn
-}
-
-// bidiStreamFields mirrors the internal layout of connect.BidiStream[Req, Res].
-type bidiStreamFields struct {
-	conn        connect.StreamingHandlerConn
-	initializer any
-}
-
-// SetClientStreamConn sets the conn field of a connect.ClientStream using unsafe.
+// SetClientStreamConn sets the conn field of a connect.ClientStream using reflect.
 func SetClientStreamConn[Req any](stream *connect.ClientStream[Req], conn connect.StreamingHandlerConn) {
-	fields := (*clientStreamFields)(unsafe.Pointer(stream))
-	fields.conn = conn
+	if stream == nil {
+		panic("rpcruntime: SetClientStreamConn called with nil stream")
+	}
+	mustCheckConnectStreamLayout()
+	setConnField(stream, conn, "SetClientStreamConn")
 }
 
-// SetServerStreamConn sets the conn field of a connect.ServerStream using unsafe.
+// SetServerStreamConn sets the conn field of a connect.ServerStream using reflect.
 func SetServerStreamConn[Res any](stream *connect.ServerStream[Res], conn connect.StreamingHandlerConn) {
-	fields := (*serverStreamFields)(unsafe.Pointer(stream))
-	fields.conn = conn
+	if stream == nil {
+		panic("rpcruntime: SetServerStreamConn called with nil stream")
+	}
+	mustCheckConnectStreamLayout()
+	setConnField(stream, conn, "SetServerStreamConn")
 }
 
-// SetBidiStreamConn sets the conn field of a connect.BidiStream using unsafe.
+// SetBidiStreamConn sets the conn field of a connect.BidiStream using reflect.
 func SetBidiStreamConn[Req, Res any](stream *connect.BidiStream[Req, Res], conn connect.StreamingHandlerConn) {
-	fields := (*bidiStreamFields)(unsafe.Pointer(stream))
-	fields.conn = conn
+	if stream == nil {
+		panic("rpcruntime: SetBidiStreamConn called with nil stream")
+	}
+	mustCheckConnectStreamLayout()
+	setConnField(stream, conn, "SetBidiStreamConn")
 }
 
 // NewClientStream creates a new connect.ClientStream with the given conn.

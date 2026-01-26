@@ -39,8 +39,8 @@ func Ygrpc_SetProtocol(protocol C.int) C.int {
 }
 
 //export Ygrpc_GetErrorMsg
-func Ygrpc_GetErrorMsg(errorID C.int, msgPtr *unsafe.Pointer, msgLen *C.int, msgFree *C.FreeFunc) C.int {
-	msg, ok := rpcruntime.GetErrorMsgBytes(int64(errorID))
+func Ygrpc_GetErrorMsg(errorID C.uint64_t, msgPtr *unsafe.Pointer, msgLen *C.int, msgFree *C.FreeFunc) C.int {
+	msg, ok := rpcruntime.GetErrorMsgBytes(uint64(errorID))
 	if !ok {
 		return 1
 	}

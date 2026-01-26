@@ -36,5 +36,5 @@ protoc -Iproto -I../proto \
   --go_out=./connect_suffix --go_opt=paths=source_relative,${GO_PKG_CONNECT_SUFFIX} \
   --connect-go_out=./connect_suffix --connect-go_opt=paths=source_relative,simple=true,${GO_PKG_CONNECT_SUFFIX} \
   --rpc-cgo-adaptor_out=./connect_suffix \
-  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=connectrpc,connect_package_suffix=connect,${GO_PKG_CONNECT_SUFFIX} \
+  --rpc-cgo-adaptor_opt=paths=source_relative,protocol=connectrpc,${GO_PKG_CONNECT_SUFFIX} \
     ./proto/unary.proto ./proto/stream.proto

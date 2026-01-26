@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 
 typedef struct {
     int done;
-    int done_error_id;
+    uint64_t done_error_id;
     int count;
     char results[8][64];
 } stream_state;
@@ -33,7 +34,7 @@ static void on_read_bytes(uint64_t call_id, void *resp_ptr, int resp_len, FreeFu
     if (resp_free) resp_free(resp_ptr);
 }
 
-static void on_done(uint64_t call_id, int error_id)
+static void on_done(uint64_t call_id, uint64_t error_id)
 {
     stream_state *st = (stream_state *)(uintptr_t)call_id;
     st->done = 1;
@@ -78,7 +79,7 @@ int main(void) {
             return 1;
         }
         if (!st.done || st.done_error_id != 0) {
-            fprintf(stderr, "expected done with error=0, got done=%d err=%d\n", st.done, st.done_error_id);
+            fprintf(stderr, "expected done with error=0, got done=%d err=%" PRIu64 "\n", st.done, st.done_error_id);
             return 1;
         }
         if (st.count != 3) {
@@ -107,7 +108,7 @@ int main(void) {
             return 1;
         }
         if (!st.done || st.done_error_id != 0) {
-            fprintf(stderr, "expected done with error=0, got done=%d err=%d\n", st.done, st.done_error_id);
+            fprintf(stderr, "expected done with error=0, got done=%d err=%" PRIu64 "\n", st.done, st.done_error_id);
             return 1;
         }
         if (st.count != 3) {
