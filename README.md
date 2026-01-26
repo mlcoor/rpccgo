@@ -172,6 +172,8 @@ go build -buildmode=c-shared -o ./libygrpc.so ./cgo_export
 
 ## 插件选项 (Plugin Options)
 
+### protoc-gen-rpc-cgo-adaptor 选项
+
 | 选项 | 取值 | 描述 |
 |--------|--------|-------------|
 | `protocol` | `grpc`, `connectrpc`, `grpc\|connectrpc` | 要支持的协议。使用 `\|` 分隔符指定多个协议 (回退顺序)。默认值：`connectrpc` |
@@ -179,6 +181,94 @@ go build -buildmode=c-shared -o ./libygrpc.so ./cgo_export
 | `paths` | `source_relative`, `import` | 输出路径模式 |
 
 > **注意**：Connect 框架仅支持 **Simple API 模式** (使用 `protoc-gen-connect-go` 且开启 `simple=true` 选项)。
+
+### Proto 自定义选项 (CGO Generation Options)
+
+rpccgo 提供了 proto 扩展选项来控制 C ABI 导出层的生成行为。首先在你的 proto 文件中导入选项定义：
+
+```protobuf
+import "ygrpc/cgo/options.proto";
+```
+
+#### RequestFreeMode - 请求内存释放模式
+
+控制是否生成 `TakeReq` 变体函数（由调用方传入 `reqFree` 函数释放请求内存）：
+
+| 值 | 描述 |
+|----|------|
+| `REQ_FREE_NONE` | 仅生成标准变体 |
+| `REQ_FREE_TAKE_REQ` | 仅生成 TakeReq 变体 |
+| `REQ_FREE_BOTH` | 同时生成两种变体 |
+
+#### NativeMode - 原生参数模式
+
+控制是否生成 `Native` 变体函数（扁平化参数直接传递，避免序列化开销）：
+
+| 值 | 描述 |
+|----|------|
+| `NATIVE_DISABLE` | 禁用 Native 变体 |
+| `NATIVE_ENABLE` | 启用 Native 变体（仅对 flat message 有效） |
+
+**Native 模式限制**：仅支持「扁平消息」—— 消息中不能包含以下字段类型：
+- `repeated` (列表)
+- `map`
+- `optional`
+- `oneof`
+- `message` (嵌套消息)
+- `enum`
+
+**支持的类型**：`int32`, `int64`, `uint32`, `uint64`, `float`, `double`, `bool`, `string`, `bytes`
+
+对于 `string`/`bytes` 类型，Native 模式使用三元组：`ptr + len + freeFunc`
+
+#### 使用示例
+
+```protobuf
+syntax = "proto3";
+import "ygrpc/cgo/options.proto";
+
+// 文件级默认选项
+option (ygrpc.cgo.default_req_free_mode) = REQ_FREE_BOTH;
+option (ygrpc.cgo.default_native_mode) = NATIVE_ENABLE;
+
+service TestService {
+  // 使用文件级默认选项
+  rpc Ping(PingRequest) returns (PingResponse);
+  
+  // 方法级覆盖：禁用 Native
+  rpc ComplexCall(ComplexRequest) returns (ComplexResponse) {
+    option (ygrpc.cgo.native_mode) = NATIVE_DISABLE;
+  }
+}
+
+// 扁平消息 - 支持 Native 模式
+message PingRequest {
+  int32 id = 1;
+  string name = 2;
+}
+
+// 非扁平消息 - 自动跳过 Native 生成
+message ComplexRequest {
+  repeated string items = 1;  // repeated 字段导致非扁平
+}
+```
+
+### 生成的函数变体 (Generated Function Variants)
+
+根据选项配置，`protoc-gen-rpc-cgo` 可能为每个 RPC 方法生成最多 4 种 C ABI 函数变体：
+
+| 变体 | 函数后缀 | 描述 |
+|------|----------|------|
+| **Binary** | (无后缀) | 标准序列化格式：`reqPtr/reqLen` → protobuf → `respPtr/respLen` |
+| **TakeReq** | `_TakeReq` | 调用方传入 `reqFree` 函数，由 Go 侧立即调用释放请求内存 |
+| **Native** | `_Native` | 扁平化参数直接传递，无序列化开销 |
+| **NativeTakeReq** | `_Native_TakeReq` | Native + TakeReq 组合 |
+
+**示例**：对于 `TestService.Ping` 方法，可能生成：
+- `Ygrpc_TestService_Ping` - 标准 Binary 变体
+- `Ygrpc_TestService_Ping_TakeReq` - TakeReq 变体
+- `Ygrpc_TestService_Ping_Native` - Native 变体
+- `Ygrpc_TestService_Ping_Native_TakeReq` - 组合变体
 
 ---
 
@@ -414,6 +504,40 @@ var (
 
 ---
 
+## C ABI 公共函数 (C ABI Common Functions)
+
+`protoc-gen-rpc-cgo` 生成的 `main.go` 包含以下公共导出函数：
+
+### Ygrpc_Free
+
+释放由 Go 侧分配的内存：
+
+```c
+void Ygrpc_Free(void* ptr);
+```
+
+### Ygrpc_SetProtocol
+
+设置当前线程/goroutine 的协议偏好：
+
+```c
+// protocol: 0 = 清除, 1 = gRPC, 2 = ConnectRPC
+void Ygrpc_SetProtocol(int protocol);
+```
+
+### Ygrpc_GetErrorMsg
+
+通过错误 ID 获取错误消息：
+
+```c
+typedef void (*FreeFunc)(void*);
+
+// 返回值: 0 = 成功, 1 = 未找到/已过期
+int Ygrpc_GetErrorMsg(int error_id, void** msg_ptr, int* msg_len, FreeFunc* msg_free);
+```
+
+---
+
 ## 架构 (Architecture)
 
 ```
@@ -602,3 +726,51 @@ go build -buildmode=c-shared -o ./libygrpc.so ./cgo_grpc
 ```
 
 更完整的脚本（含 `.h` 拷贝、C 端测试、协议矩阵等）可直接参考 [cgotest/](cgotest/)。
+
+---
+
+## 依赖版本 (Dependencies)
+
+| 依赖 | 最低版本 | 说明 |
+|------|----------|------|
+| Go | 1.21+ | 推荐使用最新稳定版 |
+| connectrpc.com/connect | v1.19.0+ | 必须使用 Simple API 模式 |
+| google.golang.org/protobuf | v1.36+ | Protobuf 运行时 |
+| google.golang.org/grpc | v1.60+ | gRPC 运行时（使用 gRPC 协议时需要） |
+
+---
+
+## 项目结构 (Project Structure)
+
+```
+rpccgo/
+├── cmd/
+│   ├── protoc-gen-rpc-cgo/          # C ABI 导出层生成器
+│   │   ├── main.go                  # protoc 插件入口
+│   │   ├── generate.go              # 公共代码生成
+│   │   ├── generate_unary.go        # Unary RPC 生成
+│   │   ├── generate_streaming.go    # 流式 RPC 生成
+│   │   └── native.go                # Native 模式工具函数
+│   └── protoc-gen-rpc-cgo-adaptor/  # Go 适配器生成器
+│       ├── main.go                  # protoc 插件入口
+│       └── generate.go              # 适配器代码生成
+├── rpcruntime/                      # 运行时库
+│   ├── dispatch.go                  # Handler 注册表
+│   ├── errors.go                    # 错误注册表 (3s TTL)
+│   ├── protocol_context.go          # 协议上下文
+│   └── stream_handle.go             # 流会话管理
+├── proto/
+│   └── ygrpc/cgo/options.proto      # CGO 生成选项定义
+└── cgotest/                         # 测试套件
+    ├── proto/                       # 测试 proto 定义
+    ├── grpc/                        # 纯 gRPC 测试
+    ├── connect/                     # 纯 Connect 测试
+    ├── connect_suffix/              # Connect + 包后缀测试
+    └── mix/                         # 多协议回退测试
+```
+
+---
+
+## 许可证 (License)
+
+MIT License

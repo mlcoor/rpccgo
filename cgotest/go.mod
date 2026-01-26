@@ -1,6 +1,6 @@
 module github.com/ygrpc/rpccgo/cgotest
 
-go 1.25.5
+go 1.24
 
 require (
 	connectrpc.com/connect v1.19.1
