@@ -83,3 +83,50 @@ tasks:
     preconditions:
       - sh: bash -c '[[ "{{.PROTOCOL}}" =~ ^(grpc|connect|mix|connect_suffix)$ ]]'
         msg: 'Invalid PROTOCOL "{{.PROTOCOL}}". Must be one of: grpc, connect, mix, connect_suffix'
+
+  clean:
+    desc: Clean build artifacts (generated code, .so, .h files) but keep hand-written tests
+    cmds:
+      - |
+        #!/usr/bin/env bash
+        set -e
+        echo "Cleaning build artifacts..."
+        for protocol in grpc connect mix connect_suffix; do
+            echo "  Cleaning $protocol..."
+            find ./$protocol -mindepth 1 -maxdepth 1 -type f ! -name 'adaptor_test.go' -delete 2>/dev/null || true
+            find ./$protocol -mindepth 1 -maxdepth 1 -type d -exec rm -rf '{}' + 2>/dev/null || true
+            find ./cgo_$protocol -mindepth 1 -maxdepth 1 -type f ! -name 'registry.go' -delete 2>/dev/null || true
+            find ./cgo_$protocol -mindepth 1 -maxdepth 1 -type d -exec rm -rf '{}' + 2>/dev/null || true
+        done
+        echo "  Cleaning c_tests artifacts..."
+        rm -f ./c_tests/libygrpc.so ./c_tests/libygrpc.h ./c_tests/ygrpc_cgo_common.h
+        echo "✓ Clean completed"
+
+  install-plugins:
+    desc: Install required protoc plugins (from workspace root)
+    cmds:
+      - echo "Installing protoc plugins..."
+      - go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+      - go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+      - (cd .. && go install ./cmd/protoc-gen-rpc-cgo-adaptor)
+      - (cd .. && go install ./cmd/protoc-gen-rpc-cgo)
+      - echo "✓ All plugins installed"
+
+  regen:
+    desc: Regenerate code for all protocols (grpc, connect, mix, connect_suffix)
+    deps: [check-deps]
+    cmds:
+      - |
+        #!/usr/bin/env bash
+        set -e
+        echo "Regenerating all protocol variants..."
+        for protocol in grpc connect mix connect_suffix; do
+            echo ""
+            echo ">>> Generating $protocol..."
+            task build PROTOCOL=$protocol
+            echo ">>> Building C ABI for $protocol..."
+            task build-cgo PROTOCOL=$protocol
+        done
+        echo ""
+        echo "✓ All protocols regenerated"
