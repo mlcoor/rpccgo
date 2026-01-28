@@ -44,7 +44,7 @@ func generateClientStreamingMethod(
 	if shouldGenerateTakeReq(opts.ReqFreeMode) {
 		generateClientStreamSendBinaryTakeReq(g, abiPrefix+"Send_TakeReq", reqType, adaptorSend)
 	}
-	generateClientStreamFinishBinary(g, abiPrefix+"Finish", respType, adaptorFinish)
+	generateClientStreamFinishBinary(g, abiPrefix+"Finish", adaptorFinish)
 
 	if shouldGenerateNative(opts.NativeMode) {
 		reqFlat := isMessageFlat(method.Input)
@@ -135,7 +135,6 @@ func generateClientStreamSendBinaryTakeReq(
 func generateClientStreamFinishBinary(
 	g *protogen.GeneratedFile,
 	funcName string,
-	respType string,
 	adaptorFinish string,
 ) {
 	g.P("//export ", funcName)
@@ -362,12 +361,15 @@ func generateServerStreamBinaryTakeReq(
 	g.P("    callID uint64,")
 	g.P(") uint64 {")
 	g.P("    reqBytes := unsafe.Slice((*byte)(reqPtr), reqLen)")
-	g.P("    if reqFree != nil {")
-	g.P("        C.call_free_func((C.FreeFunc)(reqFree), reqPtr)")
-	g.P("    }")
 	g.P("    req := &", reqType, "{}")
 	g.P("    if err := ", g.QualifiedGoIdent(protoPackage.Ident("Unmarshal")), "(reqBytes, req); err != nil {")
+	g.P("        if reqFree != nil {")
+	g.P("            C.call_free_func((C.FreeFunc)(reqFree), reqPtr)")
+	g.P("        }")
 	g.P("        return uint64(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err))")
+	g.P("    }")
+	g.P("    if reqFree != nil {")
+	g.P("        C.call_free_func((C.FreeFunc)(reqFree), reqPtr)")
 	g.P("    }")
 	g.P("    ctx := ", g.QualifiedGoIdent(rpcRuntimePkg.Ident("BackgroundContext")), "()")
 	g.P("    var doneErrId ", g.QualifiedGoIdent(syncAtomicPkg.Ident("Uint64")))
@@ -714,12 +716,15 @@ func generateBidiSendBinaryTakeReq(g *protogen.GeneratedFile, funcName string, r
 	g.P("    reqFree unsafe.Pointer,")
 	g.P(") uint64 {")
 	g.P("    reqBytes := unsafe.Slice((*byte)(reqPtr), reqLen)")
-	g.P("    if reqFree != nil {")
-	g.P("        C.call_free_func((C.FreeFunc)(reqFree), reqPtr)")
-	g.P("    }")
 	g.P("    req := &", reqType, "{}")
 	g.P("    if err := ", g.QualifiedGoIdent(protoPackage.Ident("Unmarshal")), "(reqBytes, req); err != nil {")
+	g.P("        if reqFree != nil {")
+	g.P("            C.call_free_func((C.FreeFunc)(reqFree), reqPtr)")
+	g.P("        }")
 	g.P("        return uint64(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err))")
+	g.P("    }")
+	g.P("    if reqFree != nil {")
+	g.P("        C.call_free_func((C.FreeFunc)(reqFree), reqPtr)")
 	g.P("    }")
 	g.P("    if err := ", adaptorSend, "(uint64(streamHandle), req); err != nil {")
 	g.P("        return uint64(", g.QualifiedGoIdent(rpcRuntimePkg.Ident("StoreError")), "(err))")
