@@ -33,17 +33,53 @@ tasks:
       - ./test.sh
 
   adaptor-test:
-    desc: Run adaptor tests (default all, or specify protocol)
+    desc: Run adaptor tests (default all, or specify grpc|connect|mix|connect_suffix)
     deps: [check-deps]
     cmds:
-      - ./run-adaptor-tests.sh {{.PROTOCOL | default "all"}}
+      - ./run-adaptor-tests.sh {{.PROTOCOL}}
     vars:
-      PROTOCOL: '{{.CLI_ARGS}}'
+      PROTOCOL: '{{.PROTOCOL | default "all"}}'
+    preconditions:
+      - sh: bash -c '[[ "{{.PROTOCOL}}" =~ ^(all|grpc|connect|mix|connect_suffix)$ ]]'
+        msg: 'Invalid PROTOCOL "{{.PROTOCOL}}". Must be one of: all, grpc, connect, mix, connect_suffix'
 
   c-test:
-    desc: Run C end-to-end tests (default all, or specify protocol)
+    desc: Run C end-to-end tests (default all, or specify grpc|connect|mix|connect_suffix)
     deps: [check-deps]
     cmds:
-      - ./run-c-tests.sh {{.PROTOCOL | default "all"}}
+      - ./run-c-tests.sh {{.PROTOCOL}}
     vars:
-      PROTOCOL: '{{.CLI_ARGS}}'
+      PROTOCOL: '{{.PROTOCOL | default "all"}}'
+    preconditions:
+      - sh: bash -c '[[ "{{.PROTOCOL}}" =~ ^(all|grpc|connect|mix|connect_suffix)$ ]]'
+        msg: 'Invalid PROTOCOL "{{.PROTOCOL}}". Must be one of: all, grpc, connect, mix, connect_suffix'
+
+  build:
+    desc: Build adaptor code for protocol (default connect, or specify grpc|connect|mix|connect_suffix)
+    deps: [check-deps]
+    cmds:
+      - |
+        case "{{.PROTOCOL}}" in
+          connect_suffix) ./build-connect-suffix.sh ;;
+          *) ./build-{{.PROTOCOL}}.sh ;;
+        esac
+    vars:
+      PROTOCOL: '{{.PROTOCOL | default "connect"}}'
+    preconditions:
+      - sh: bash -c '[[ "{{.PROTOCOL}}" =~ ^(grpc|connect|mix|connect_suffix)$ ]]'
+        msg: 'Invalid PROTOCOL "{{.PROTOCOL}}". Must be one of: grpc, connect, mix, connect_suffix'
+
+  build-cgo:
+    desc: Build C ABI export for protocol (default connect, or specify grpc|connect|mix|connect_suffix)
+    deps: [check-deps]
+    cmds:
+      - |
+        case "{{.PROTOCOL}}" in
+          connect_suffix) ./build-cgo-connect-suffix.sh ;;
+          *) ./build-cgo-{{.PROTOCOL}}.sh ;;
+        esac
+    vars:
+      PROTOCOL: '{{.PROTOCOL | default "connect"}}'
+    preconditions:
+      - sh: bash -c '[[ "{{.PROTOCOL}}" =~ ^(grpc|connect|mix|connect_suffix)$ ]]'
+        msg: 'Invalid PROTOCOL "{{.PROTOCOL}}". Must be one of: grpc, connect, mix, connect_suffix'
