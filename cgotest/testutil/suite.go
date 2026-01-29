@@ -10,6 +10,8 @@ import (
 type RegisterFunc func() func()
 type UnaryCallFunc func(ctx context.Context, msg string) (string, error)
 
+// RunUnaryTest 执行 Unary RPC 的标准测试流程：
+// 注册 handler → 调用 RPC → 验证响应匹配预期值。
 func RunUnaryTest(t *testing.T, register RegisterFunc, call UnaryCallFunc, input, expected string) {
 	t.Helper()
 	cleanup := register()
@@ -27,6 +29,8 @@ type ClientStreamStartFunc func(ctx context.Context) (uint64, error)
 type ClientStreamSendFunc func(handle uint64, data string) error
 type ClientStreamFinishFunc func(handle uint64) (string, error)
 
+// RunClientStreamTest 执行客户端流式 RPC 的测试流程：
+// 注册 handler → 开启流 → 发送多条消息 → 完成并验证响应。
 func RunClientStreamTest(
 	t *testing.T,
 	register RegisterFunc,
@@ -57,6 +61,8 @@ func RunClientStreamTest(
 
 type ServerStreamCallFunc func(ctx context.Context, msg string, onRead func(string) bool) error
 
+// RunServerStreamTest 执行服务端流式 RPC 的测试流程：
+// 注册 handler → 发送请求 → 通过回调接收所有响应 → 验证响应序列。
 func RunServerStreamTest(
 	t *testing.T,
 	register RegisterFunc,
@@ -91,6 +97,8 @@ type BidiStreamStartFunc func(ctx context.Context, onRead func(string) bool, onD
 type BidiStreamSendFunc func(handle uint64, data string) error
 type BidiStreamCloseSendFunc func(handle uint64)
 
+// RunBidiStreamTest 执行双向流式 RPC 的测试流程：
+// 注册 handler → 开启流 → 发送消息 → 关闭发送端 → 等待完成 → 验证响应。
 func RunBidiStreamTest(
 	t *testing.T,
 	register RegisterFunc,

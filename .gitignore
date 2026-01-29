@@ -35,3 +35,12 @@ cgotest/c_tests/unary_test
 cgotest/c_tests/unary_test_mismatch
 
 .serena
+
+# AI/Agent local state files (do NOT ignore entire .sisyphus/)
+.sisyphus/boulder.json
+
+# Python virtual environments
+cgotest/.venv/
+
+# Python bytecode caches (generated locally)
+cgotest/c_tests/nanopb/generator/proto/__pycache__/
