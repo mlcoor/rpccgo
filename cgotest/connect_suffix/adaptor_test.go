@@ -1,77 +1,20 @@
 package cgotest_connect_suffix
 
 import (
+	"connectrpc.com/connect"
 	"context"
+	"github.com/ygrpc/rpccgo/cgotest/testutil"
+	"github.com/ygrpc/rpccgo/rpcruntime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"connectrpc.com/connect"
-	"github.com/ygrpc/rpccgo/cgotest/testutil"
-	"github.com/ygrpc/rpccgo/rpcruntime"
 )
 
-type mockConnectSuffixHandler struct {
-	pingCalled bool
-	lastMsg    string
-}
+type mockConnectSuffixHandler struct{}
 
-func (m *mockConnectSuffixHandler) Ping(ctx context.Context, req *PingRequest) (*PingResponse, error) {
-	m.pingCalled = true
-	m.lastMsg = req.GetMsg()
+func (m *mockConnectSuffixHandler) Ping(_ context.Context, req *PingRequest) (*PingResponse, error) {
 	return &PingResponse{Msg: "pong: " + req.GetMsg()}, nil
-}
-
-func TestConnectSuffixAdaptor(t *testing.T) {
-	t.Run("NoProtocol_DefaultConnect", func(t *testing.T) {
-		mock := &mockConnectSuffixHandler{}
-		testutil.RunUnaryTest(
-			t,
-			func() func() {
-				_, err := rpcruntime.RegisterConnectHandler(TestService_ServiceName, mock)
-				testutil.RequireNoError(t, err)
-				return func() {}
-			},
-			func(ctx context.Context, msg string) (string, error) {
-				resp, err := TestService_Ping(ctx, &PingRequest{Msg: msg})
-				if err != nil {
-					return "", err
-				}
-				return resp.GetMsg(), nil
-			},
-			"hello",
-			"pong: hello",
-		)
-
-		if !mock.pingCalled {
-			t.Error("expected handler to be called")
-		}
-		if mock.lastMsg != "hello" {
-			t.Errorf("expected lastMsg to be 'hello', got %q", mock.lastMsg)
-		}
-	})
-
-	t.Run("ExplicitConnectRPC", func(t *testing.T) {
-		testutil.RunUnaryTest(
-			t,
-			func() func() {
-				_, err := rpcruntime.RegisterConnectHandler(TestService_ServiceName, &mockConnectSuffixHandler{})
-				testutil.RequireNoError(t, err)
-				return func() {}
-			},
-			func(ctx context.Context, msg string) (string, error) {
-				ctx = rpcruntime.WithProtocol(ctx, rpcruntime.ProtocolConnectRPC)
-				resp, err := TestService_Ping(ctx, &PingRequest{Msg: msg})
-				if err != nil {
-					return "", err
-				}
-				return resp.GetMsg(), nil
-			},
-			"hello",
-			"pong: hello",
-		)
-	})
 }
 
 type mockConnectSuffixStreamServiceHandler struct{}
@@ -81,15 +24,14 @@ func (m *mockConnectSuffixStreamServiceHandler) ClientStreamCall(
 	stream *connect.ClientStream[StreamRequest],
 ) (*StreamResponse, error) {
 	_ = ctx
-	var msgs []string
+	var builder strings.Builder
 	for stream.Receive() {
-		msgs = append(msgs, stream.Msg().GetData())
+		builder.WriteString(stream.Msg().GetData())
 	}
 	if err := stream.Err(); err != nil {
 		return nil, err
 	}
-	joined := strings.Join(msgs, "")
-	return &StreamResponse{Result: "received:" + joined}, nil
+	return &StreamResponse{Result: "received:" + builder.String()}, nil
 }
 
 func (m *mockConnectSuffixStreamServiceHandler) ServerStreamCall(
@@ -98,16 +40,14 @@ func (m *mockConnectSuffixStreamServiceHandler) ServerStreamCall(
 	stream *connect.ServerStream[StreamResponse],
 ) error {
 	_ = ctx
-	if err := stream.Send(&StreamResponse{Result: req.GetData() + "-a"}); err != nil {
+	prefix := req.GetData() + "-"
+	if err := stream.Send(&StreamResponse{Result: prefix + "a"}); err != nil {
 		return err
 	}
-	if err := stream.Send(&StreamResponse{Result: req.GetData() + "-b"}); err != nil {
+	if err := stream.Send(&StreamResponse{Result: prefix + "b"}); err != nil {
 		return err
 	}
-	if err := stream.Send(&StreamResponse{Result: req.GetData() + "-c"}); err != nil {
-		return err
-	}
-	return nil
+	return stream.Send(&StreamResponse{Result: prefix + "c"})
 }
 
 func (m *mockConnectSuffixStreamServiceHandler) BidiStreamCall(
@@ -127,114 +67,18 @@ func (m *mockConnectSuffixStreamServiceHandler) BidiStreamCall(
 	return nil
 }
 
-func TestConnectSuffixAdaptor_StreamServiceStreaming(t *testing.T) {
-	t.Run("ClientStreaming", func(t *testing.T) {
-		testutil.RunClientStreamTest(
-			t,
-			func() func() {
-				_, err := rpcruntime.RegisterConnectHandler(StreamService_ServiceName, &mockConnectSuffixStreamServiceHandler{})
-				testutil.RequireNoError(t, err)
-				return func() {}
-			},
-			func(ctx context.Context) (uint64, error) {
-				return StreamService_ClientStreamCallStart(ctx)
-			},
-			func(handle uint64, data string) error {
-				return StreamService_ClientStreamCallSend(handle, &StreamRequest{Data: data})
-			},
-			func(handle uint64) (string, error) {
-				resp, err := StreamService_ClientStreamCallFinish(handle)
-				if err != nil {
-					return "", err
-				}
-				return resp.GetResult(), nil
-			},
-			[]string{"A", "B", "C"},
-			"received:ABC",
-		)
-	})
-
-	t.Run("ServerStreaming", func(t *testing.T) {
-		testutil.RunServerStreamTest(
-			t,
-			func() func() {
-				_, err := rpcruntime.RegisterConnectHandler(StreamService_ServiceName, &mockConnectSuffixStreamServiceHandler{})
-				testutil.RequireNoError(t, err)
-				return func() {}
-			},
-			func(ctx context.Context, msg string, onRead func(string) bool) error {
-				done := make(chan error, 1)
-				onDone := func(err error) {
-					done <- err
-				}
-				if err := StreamService_ServerStreamCall(
-					ctx,
-					&StreamRequest{Data: msg},
-					func(resp *StreamResponse) bool {
-						return onRead(resp.GetResult())
-					},
-					onDone,
-				); err != nil {
-					return err
-				}
-				select {
-				case err := <-done:
-					return err
-				case <-time.After(5 * time.Second):
-					return context.DeadlineExceeded
-				}
-			},
-			"test",
-			[]string{"test-a", "test-b", "test-c"},
-		)
-	})
-
-	t.Run("BidiStreaming", func(t *testing.T) {
-		testutil.RunBidiStreamTest(
-			t,
-			func() func() {
-				_, err := rpcruntime.RegisterConnectHandler(StreamService_ServiceName, &mockConnectSuffixStreamServiceHandler{})
-				testutil.RequireNoError(t, err)
-				return func() {}
-			},
-			func(ctx context.Context, onRead func(string) bool, onDone func(error)) (uint64, error) {
-				wrappedDone, startTimer := wrapOnDoneWithTimeout(onDone)
-				handle, err := StreamService_BidiStreamCallStart(
-					ctx,
-					func(resp *StreamResponse) bool {
-						return onRead(resp.GetResult())
-					},
-					wrappedDone,
-				)
-				if err != nil {
-					return 0, err
-				}
-				startTimer()
-				return handle, nil
-			},
-			func(handle uint64, data string) error {
-				return StreamService_BidiStreamCallSend(handle, &StreamRequest{Data: data})
-			},
-			func(handle uint64) {
-				if err := StreamService_BidiStreamCallCloseSend(handle); err != nil {
-					t.Fatalf("StreamService_BidiStreamCallCloseSend failed: %v", err)
-				}
-			},
-			[]string{"X", "Y", "Z"},
-			[]string{"echo:X", "echo:Y", "echo:Z"},
-		)
-	})
+func registerConnect(t *testing.T, name string, handler any) testutil.RegisterFunc {
+	return func() func() {
+		_, err := rpcruntime.RegisterConnectHandler(name, handler)
+		testutil.RequireNoError(t, err)
+		return func() {}
+	}
 }
 
 func wrapOnDoneWithTimeout(onDone func(error)) (func(error), func()) {
 	done := make(chan struct{})
 	var once sync.Once
-	wrapped := func(err error) {
-		once.Do(func() {
-			close(done)
-			onDone(err)
-		})
-	}
+	wrapped := func(err error) { once.Do(func() { close(done); onDone(err) }) }
 	startTimer := func() {
 		go func() {
 			select {
@@ -245,4 +89,68 @@ func wrapOnDoneWithTimeout(onDone func(error)) (func(error), func()) {
 		}()
 	}
 	return wrapped, startTimer
+}
+
+func TestConnectSuffixAdaptor(t *testing.T) {
+	t.Run("NoProtocol_DefaultConnect", func(t *testing.T) {
+		testutil.RunUnaryTest(t, registerConnect(t, TestService_ServiceName, &mockConnectSuffixHandler{}), func(ctx context.Context, msg string) (string, error) {
+			resp, err := TestService_Ping(ctx, &PingRequest{Msg: msg})
+			if err != nil {
+				return "", err
+			}
+			return resp.GetMsg(), nil
+		}, "hello", "pong: hello")
+	})
+	t.Run("ExplicitConnectRPC", func(t *testing.T) {
+		testutil.RunUnaryTest(t, registerConnect(t, TestService_ServiceName, &mockConnectSuffixHandler{}), func(ctx context.Context, msg string) (string, error) {
+			ctx = rpcruntime.WithProtocol(ctx, rpcruntime.ProtocolConnectRPC)
+			resp, err := TestService_Ping(ctx, &PingRequest{Msg: msg})
+			if err != nil {
+				return "", err
+			}
+			return resp.GetMsg(), nil
+		}, "hello", "pong: hello")
+	})
+}
+
+func TestConnectSuffixAdaptor_StreamServiceStreaming(t *testing.T) {
+	t.Run("ClientStreaming", func(t *testing.T) {
+		testutil.RunClientStreamTest(t, registerConnect(t, StreamService_ServiceName, &mockConnectSuffixStreamServiceHandler{}), func(ctx context.Context) (uint64, error) { return StreamService_ClientStreamCallStart(ctx) }, func(handle uint64, data string) error {
+			return StreamService_ClientStreamCallSend(handle, &StreamRequest{Data: data})
+		}, func(handle uint64) (string, error) {
+			resp, err := StreamService_ClientStreamCallFinish(handle)
+			if err != nil {
+				return "", err
+			}
+			return resp.GetResult(), nil
+		}, []string{"A", "B", "C"}, "received:ABC")
+	})
+	t.Run("ServerStreaming", func(t *testing.T) {
+		testutil.RunServerStreamTest(t, registerConnect(t, StreamService_ServiceName, &mockConnectSuffixStreamServiceHandler{}), func(ctx context.Context, msg string, onRead func(string) bool) error {
+			done := make(chan error, 1)
+			onDone := func(err error) { done <- err }
+			if err := StreamService_ServerStreamCall(ctx, &StreamRequest{Data: msg}, func(resp *StreamResponse) bool { return onRead(resp.GetResult()) }, onDone); err != nil {
+				return err
+			}
+			select {
+			case err := <-done:
+				return err
+			case <-time.After(5 * time.Second):
+				return context.DeadlineExceeded
+			}
+		}, "test", []string{"test-a", "test-b", "test-c"})
+	})
+	t.Run("BidiStreaming", func(t *testing.T) {
+		testutil.RunBidiStreamTest(t, registerConnect(t, StreamService_ServiceName, &mockConnectSuffixStreamServiceHandler{}), func(ctx context.Context, onRead func(string) bool, onDone func(error)) (uint64, error) {
+			wrappedDone, startTimer := wrapOnDoneWithTimeout(onDone)
+			handle, err := StreamService_BidiStreamCallStart(ctx, func(resp *StreamResponse) bool { return onRead(resp.GetResult()) }, wrappedDone)
+			if err != nil {
+				return 0, err
+			}
+			startTimer()
+			return handle, nil
+		}, func(handle uint64, data string) error {
+			return StreamService_BidiStreamCallSend(handle, &StreamRequest{Data: data})
+		}, func(handle uint64) { testutil.RequireNoError(t, StreamService_BidiStreamCallCloseSend(handle)) }, []string{"X", "Y", "Z"}, []string{"echo:X", "echo:Y", "echo:Z"})
+	})
 }
